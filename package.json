@@ -18,7 +18,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "start": "electron-vite preview",
-    "dist": "pnpm run build && electron-builder"
+    "dist": "pnpm run build && node scripts/run-electron-builder.cjs",
+    "dist:publish": "pnpm run build && node scripts/run-electron-builder.cjs --publish"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.1",
