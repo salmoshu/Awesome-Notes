@@ -1,0 +1,8 @@
+onlyBuiltDependencies:
+  - esbuild
+ignoredBuiltDependencies:
+  - electron
+allowBuilds:
+  electron: false
+  esbuild: true
+verifyDepsBeforeRun: false

@@ -1,0 +1,23 @@
+appId: com.winchell.awesome-notes
+productName: Awesome-Notes
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: sidecar/bin
+    to: sidecar
+  - from: release-notes.md
+    to: release-notes.md
+publish:
+  - provider: github
+    owner: salmoshu
+    repo: Awesome-Notes
+    releaseType: release
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+release/
+sidecar/bin/
+sidecar/data/
+.toolchain/
+*.log
+.DS_Store

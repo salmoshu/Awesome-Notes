@@ -1,0 +1,48 @@
+{
+  "name": "awesome-notes",
+  "version": "0.2.0",
+  "description": "Awesome-Notes —— 项目富文本文档阅读器（Markdown / HTML），支持批注与编辑，批注可生成地址交给 agent 执行修改",
+  "author": "Winchell.Hu <winchell.hu@outlook.com>",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "postinstall": "node scripts/install-native.mjs",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "predev": "node scripts/install-native.mjs && node scripts/build-sidecar.mjs",
+    "dev": "electron-vite dev",
+    "dev:web": "vite --config vite.web.config.ts",
+    "prebuild": "node scripts/build-sidecar.mjs",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "start": "electron-vite preview",
+    "dist": "pnpm run build && electron-builder"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "codemirror": "^6.0.1",
+    "electron-updater": "^6.8.9",
+    "highlight.js": "^11.10.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

@@ -1,0 +1,103 @@
+/* Markdown 排版（prose）：纸张卡片 + 精细化中文阅读样式 */
+/* 字号 / 宽度 / 字体由设置页经 CSS 变量控制（见 utils/settings.ts applyAppearance） */
+.prose {
+  max-width: var(--reader-width, 820px);
+  margin: 28px auto 80px;
+  padding: 44px 56px;
+  background: var(--paper);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  font-size: var(--reader-font-size, 15px);
+  font-family: var(--reader-font-family, inherit);
+  line-height: 1.9;
+  color: var(--ink);
+  user-select: text;
+  word-break: break-word;
+}
+
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  color: var(--ink);
+  line-height: 1.45;
+  font-weight: 700;
+}
+.prose h1 {
+  font-size: 26px; margin: 0 0 20px; padding-bottom: 14px;
+  border-bottom: 2px solid var(--line); letter-spacing: 0.3px;
+}
+.prose h2 {
+  font-size: 20px; margin: 40px 0 12px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.prose h2::before { content: "§ "; color: var(--accent); font-weight: 400; }
+.prose h3 { font-size: 17px; margin: 28px 0 8px; }
+.prose h4 { font-size: 15px; margin: 22px 0 6px; }
+
+.prose p { margin: 10px 0; }
+.prose ul, .prose ol { margin: 8px 0 12px; padding-left: 26px; }
+.prose li { margin: 4px 0; }
+.prose li::marker { color: var(--accent); }
+.prose strong { color: var(--ink); }
+.prose a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+.prose a:hover { border-bottom-color: var(--accent); }
+
+.prose blockquote {
+  margin: 14px 0; padding: 12px 18px;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 10px 10px 0;
+  color: var(--ink2); font-size: 14px;
+}
+.prose blockquote p { margin: 3px 0; }
+
+.prose code {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 0.85em; background: var(--accent-soft); padding: 1.5px 6px;
+  border-radius: 5px; color: #c7254e;
+}
+.prose pre {
+  background: #1e2430; color: #dbe4f0; padding: 16px 18px;
+  border-radius: 10px; overflow-x: auto; margin: 14px 0;
+  font-size: 12.8px; line-height: 1.7;
+}
+.prose pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+.prose table {
+  border-collapse: collapse; width: 100%; margin: 16px 0;
+  font-size: 13.5px; line-height: 1.7; display: block; overflow-x: auto;
+}
+.prose th, .prose td { border: 1px solid var(--line); padding: 7px 11px; text-align: left; vertical-align: top; }
+.prose th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+.prose tr:nth-child(even) td { background: rgba(127, 127, 127, 0.05); }
+
+.prose img { max-width: 100%; border-radius: 8px; }
+.prose hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+
+/* highlight.js 主题（亮色平铺于深色底上仅微调） */
+.prose pre .hljs-keyword, .prose pre .hljs-selector-tag { color: #7cb3ff; }
+.prose pre .hljs-string, .prose pre .hljs-attr { color: #a5d6a7; }
+.prose pre .hljs-comment { color: #6b7385; font-style: italic; }
+.prose pre .hljs-number, .prose pre .hljs-literal { color: #f0a35e; }
+.prose pre .hljs-function, .prose pre .hljs-title { color: #ffd479; }
+
+/* ---- 批注高亮 ---- */
+.prose mark.ann-mark {
+  background: #fff1a8; color: inherit; padding: 0 1px;
+  border-bottom: 2px solid #f5c451; cursor: pointer; border-radius: 2px;
+  transition: background 0.15s;
+}
+.prose mark.ann-mark:hover { background: #ffe679; }
+.prose mark.ann-mark.done { background: #dcf5e5; border-bottom-color: #34c77b; }
+.prose mark.ann-mark.flash {
+  animation: ann-flash 1.6s ease-out;
+}
+@keyframes ann-flash {
+  0%, 60% { background: #ffd479; box-shadow: 0 0 0 4px rgba(255, 180, 0, 0.35); }
+  100% { background: #fff1a8; box-shadow: none; }
+}
+
+/* ---- 深色主题下的 prose 微调 ---- */
+[data-theme='dark'] .prose code { color: #f0a35e; }
+[data-theme='dark'] .prose blockquote { color: var(--ink2); }
+[data-theme='dark'] .prose mark.ann-mark { background: #6b5d1f; color: #f5e9c8; border-bottom-color: #a8871e; }
+[data-theme='dark'] .prose mark.ann-mark:hover { background: #857028; }
+[data-theme='dark'] .prose mark.ann-mark.done { background: #1d4030; color: #b8e6cc; border-bottom-color: #2e9e68; }
