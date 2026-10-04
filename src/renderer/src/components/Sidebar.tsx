@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import type { DocNode } from '@shared/types'
 
@@ -83,29 +83,10 @@ export default function Sidebar() {
     treeLoading,
     filter,
     setFilter,
-    toast,
-    checkUpdate,
-    updateChecking,
-    openSettings
+    toast
   } = useStore()
-  const [version, setVersion] = useState('')
 
   const active = useMemo(() => projects.find((p) => p.id === activeProjectId), [projects, activeProjectId])
-
-  // 应用版本（Electron 环境从主进程取；纯 Web 预览显示 dev）
-  useEffect(() => {
-    let mounted = true
-    if (window.awesomeNotes) {
-      window.awesomeNotes.appVersion().then((v) => {
-        if (mounted) setVersion(`v${v}`)
-      })
-    } else {
-      setVersion('web 预览')
-    }
-    return () => {
-      mounted = false
-    }
-  }, [])
 
   const onImport = async () => {
     if (window.awesomeNotes) {
@@ -191,21 +172,6 @@ export default function Sidebar() {
           </div>
         </>
       )}
-
-      <div className="sb-footer">
-        <span className="sb-version">{version}</span>
-        <button
-          className="sb-update"
-          onClick={() => void checkUpdate()}
-          disabled={updateChecking}
-          title="检查是否有新版本"
-        >
-          {updateChecking ? '检查中…' : '⟳ 检查更新'}
-        </button>
-        <button className="sb-update" onClick={openSettings} title="设置">
-          ⚙ 设置
-        </button>
-      </div>
     </aside>
   )
 }

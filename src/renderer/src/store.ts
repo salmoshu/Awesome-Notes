@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from './api'
-import type { Annotation, DocContent, DocNode, Project, UpdateStatusType } from '@shared/types'
+import type { Annotation, DocContent, DocNode, Project } from '@shared/types'
 import { applyAppearance, loadSettings, saveSettings, type AppSettings } from './utils/settings'
 
 export type ViewMode = 'read' | 'edit'
@@ -29,17 +29,12 @@ interface State {
   annPanelOpen: boolean
   composeQuote: { quote: string; prefix: string; suffix: string } | null
   toasts: Toast[]
-  updateChecking: boolean
-  updateManualPending: boolean
   settings: AppSettings
   settingsOpen: boolean
 
   setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   openSettings(): void
   closeSettings(): void
-  checkUpdate(): Promise<void>
-  updateSettled(type: UpdateStatusType): void
-  setUpdateChecking(b: boolean): void
 
   init(): Promise<void>
   toast(kind: Toast['kind'], text: string): void
@@ -81,8 +76,6 @@ export const useStore = create<State>((set, get) => ({
   annPanelOpen: true,
   composeQuote: null,
   toasts: [],
-  updateChecking: false,
-  updateManualPending: false,
   settings: loadSettings(),
   settingsOpen: false,
 
@@ -99,42 +92,6 @@ export const useStore = create<State>((set, get) => ({
 
   closeSettings() {
     set({ settingsOpen: false })
-  },
-
-  async checkUpdate() {
-    const bridge = window.awesomeNotes
-    if (!bridge) {
-      get().toast('info', '纯 Web 预览模式不支持检查更新')
-      return
-    }
-    set({ updateChecking: true, updateManualPending: true })
-    try {
-      await bridge.updaterCheck()
-      // 主进程在 dev 下抛错；打包环境下结果经事件通道推送（updateSettled 收口）
-      setTimeout(() => {
-        if (get().updateChecking) {
-          set({ updateChecking: false, updateManualPending: false })
-        }
-      }, 15_000)
-    } catch (err) {
-      set({ updateChecking: false, updateManualPending: false })
-      // IPC 错误形如 "Error invoking remote method 'update-check': Error: <msg>"，只保留正文
-      const raw = String(err instanceof Error ? err.message : err)
-      const msg = raw.includes('Error:') ? raw.split('Error:').pop()!.trim() : raw
-      get().toast('info', msg)
-    }
-  },
-
-  updateSettled(type) {
-    set({ updateChecking: false })
-    if (get().updateManualPending) {
-      set({ updateManualPending: false })
-      if (type === 'update-not-available') get().toast('ok', '当前已是最新版本')
-    }
-  },
-
-  setUpdateChecking(b) {
-    set({ updateChecking: b })
   },
 
   async init() {

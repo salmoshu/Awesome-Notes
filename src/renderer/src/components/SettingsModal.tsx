@@ -190,16 +190,17 @@ export default function SettingsModal() {
               <div className="st-row">
                 <div className="st-label">阅读区宽度</div>
                 <div className="seg">
-                  {[760, 820, 960, 9999].map((w) => (
+                  {[70, 80, 90, 100].map((w) => (
                     <button
                       key={w}
                       className={settings.contentWidth === w ? 'active' : ''}
                       onClick={() => setSetting('contentWidth', w)}
                     >
-                      {w === 9999 ? '全宽' : w}
+                      {w === 100 ? '全宽' : `${w}%`}
                     </button>
                   ))}
                 </div>
+                <div className="st-hint">按阅读区宽度的百分比控制内容行宽</div>
               </div>
 
               <div className="st-row">

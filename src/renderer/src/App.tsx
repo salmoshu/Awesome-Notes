@@ -7,6 +7,7 @@ import AnnotationPanel from './components/AnnotationPanel'
 import Toasts from './components/Toasts'
 import UpdateCard from './components/UpdateCard'
 import SettingsModal from './components/SettingsModal'
+import Logo from './components/Logo'
 
 export default function App() {
   const { init, ready, fatalError, annPanelOpen, activeDoc } = useStore()
@@ -18,7 +19,7 @@ export default function App() {
   if (!ready) {
     return (
       <div className="boot">
-        <div className="boot-logo">📓</div>
+        <Logo size={56} />
         <div className="boot-text">Awesome-Notes 正在启动…</div>
       </div>
     )
@@ -27,7 +28,7 @@ export default function App() {
   if (fatalError) {
     return (
       <div className="boot">
-        <div className="boot-logo">⚠️</div>
+        <Logo size={56} />
         <div className="boot-text">sidecar 服务连接失败</div>
         <div className="boot-err">{fatalError}</div>
         <div className="boot-hint">

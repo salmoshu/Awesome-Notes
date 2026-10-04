@@ -4,7 +4,7 @@ export interface AppSettings {
   theme: 'light' | 'dark'
   /** 阅读区正文字号（px） */
   fontSize: number
-  /** 阅读区纸张最大宽度（px） */
+  /** 阅读区内容宽度（百分比 70–100，100 为全宽） */
   contentWidth: number
   /** 正文使用衬线字体 */
   serifFont: boolean
@@ -21,7 +21,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   fontSize: 15,
-  contentWidth: 820,
+  contentWidth: 80,
   serifFont: false,
   defaultMode: 'read',
   annPanelDefaultOpen: true,
@@ -31,10 +31,23 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 const SETTINGS_KEY = 'awesome-notes-settings'
 
+/** v0.2.0 及之前 contentWidth 为像素值（760/820/960/9999），迁移到百分比档位 */
+function normalizeWidth(w: unknown): number {
+  if (w === 70 || w === 80 || w === 90 || w === 100) return w
+  if (w === 9999) return 100
+  if (w === 760) return 70
+  if (w === 820) return 80
+  if (w === 960) return 90
+  return DEFAULT_SETTINGS.contentWidth
+}
+
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<AppSettings>) }
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<AppSettings>
+      return { ...DEFAULT_SETTINGS, ...saved, contentWidth: normalizeWidth(saved.contentWidth) }
+    }
   } catch {
     /* 损坏数据回退默认 */
   }
@@ -52,7 +65,7 @@ export function applyAppearance(s: AppSettings): void {
   root.style.setProperty('--reader-font-size', `${s.fontSize}px`)
   root.style.setProperty(
     '--reader-width',
-    s.contentWidth >= 9999 ? 'none' : `${s.contentWidth}px`
+    s.contentWidth >= 100 ? 'none' : `${s.contentWidth}%`
   )
   root.style.setProperty(
     '--reader-font-family',

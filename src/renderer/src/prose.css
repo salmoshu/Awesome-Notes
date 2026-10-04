@@ -1,7 +1,7 @@
 /* Markdown 排版（prose）：纸张卡片 + 精细化中文阅读样式 */
 /* 字号 / 宽度 / 字体由设置页经 CSS 变量控制（见 utils/settings.ts applyAppearance） */
 .prose {
-  max-width: var(--reader-width, 820px);
+  max-width: var(--reader-width, 80%);
   margin: 28px auto 80px;
   padding: 44px 56px;
   background: var(--paper);

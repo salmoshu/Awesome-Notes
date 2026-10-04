@@ -2,18 +2,16 @@ import { useEffect, useState } from 'react'
 import type { UpdateStatusEvent, UpdaterPrefs } from '@shared/types'
 import { compareVersions } from '../utils/version'
 import { loadUpdaterPrefs, saveUpdaterPrefs } from '../utils/updater-prefs'
-import { useStore } from '../store'
 
 /**
  * 全局更新浮层卡片（右下角），语义对齐 Nav-Tools UpdateDialog：
  * - 自动下载开启时全程静默，仅下载完成待重启时出现；
  * - 自动下载关闭时，发现新版本出现「立即下载 / 忽略此版本」；
  * - 忽略版本持久化，仅出现更新版本号时才重新提醒。
- * 手动检查入口在 store.checkUpdate（侧栏底部按钮）。
+ * 手动检查入口在设置页（版本区）。
  */
 export default function UpdateCard() {
   const bridge = window.awesomeNotes
-  const updateSettled = useStore((s) => s.updateSettled)
   const [event, setEvent] = useState<UpdateStatusEvent | null>(null)
   const [prefs, setPrefs] = useState<UpdaterPrefs>(loadUpdaterPrefs)
   const [sessionHidden, setSessionHidden] = useState(false)
@@ -32,21 +30,18 @@ export default function UpdateCard() {
         setEvent(e)
         setSessionHidden(false)
         setManualDownloading(false)
-        updateSettled(e.type)
       } else if (e.type === 'download-progress') {
         setEvent(e)
       } else if (e.type === 'update-downloaded') {
         setEvent(e)
         setSessionHidden(false)
         setManualDownloading(false)
-        updateSettled(e.type)
       } else if (e.type === 'update-not-available' || e.type === 'error') {
         setEvent(null)
         setManualDownloading(false)
-        updateSettled(e.type)
       }
     })
-  }, [bridge, updateSettled])
+  }, [bridge])
 
   const version = event?.version ?? ''
   const percent = event?.percent ?? 0

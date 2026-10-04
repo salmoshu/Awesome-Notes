@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useStore } from '../store'
 import MarkdownView, { selectionAnchor } from './MarkdownView'
 import EditorPane from './EditorPane'
+import Logo from './Logo'
 
 export default function Reader() {
   const {
@@ -73,7 +74,7 @@ export default function Reader() {
           <div className="re-hint">读取中…</div>
         ) : (
           <>
-            <div className="re-logo">📖</div>
+            <Logo size={56} />
             <div className="re-title">从左侧选择一篇文档开始阅读</div>
             <div className="re-hint">
               支持 Markdown / HTML / TXT；选中文字即可批注，批注地址可复制给 agent 执行修改。
