@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import type { DocNode, Project } from '@shared/types'
 import ContextMenu, { type MenuItem } from './ContextMenu'
 import GitPanel from './GitPanel'
+import SearchPanel from './SearchPanel'
 import {
   blockPath,
   hiddenProjectIds,
@@ -15,7 +16,7 @@ import {
   unhideProject
 } from '../utils/local-store'
 
-type TreeTab = 'docs' | 'git'
+type TreeTab = 'docs' | 'search' | 'git'
 
 function extIcon(ext?: string): string {
   switch (ext) {
@@ -336,6 +337,12 @@ export default function Sidebar() {
             >
               文档
             </button>
+            <button
+              className={tab === 'search' ? 'active' : ''}
+              onClick={() => setTab('search')}
+            >
+              搜索
+            </button>
             <button className={tab === 'git' ? 'active' : ''} onClick={() => setTab('git')}>
               Git
             </button>
@@ -367,6 +374,10 @@ export default function Sidebar() {
                   ))}
               </div>
             </>
+          ) : tab === 'search' ? (
+            <div className="sb-tree git-tree">
+              <SearchPanel projectId={active.id} />
+            </div>
           ) : (
             <div className="sb-tree git-tree">
               <GitPanel projectId={active.id} />

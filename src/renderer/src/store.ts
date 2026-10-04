@@ -32,12 +32,15 @@ interface State {
   settings: AppSettings
   settingsOpen: boolean
   extPageUrl: string | null
+  /** 搜索结果点击后待定位：打开文档后滚到首个命中处 */
+  pendingLocate: { path: string; keyword: string } | null
 
   setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   openSettings(): void
   closeSettings(): void
   openExtPage(url: string): void
   closeExtPage(): void
+  setPendingLocate(v: { path: string; keyword: string } | null): void
 
   init(): Promise<void>
   toast(kind: Toast['kind'], text: string): void
@@ -82,6 +85,7 @@ export const useStore = create<State>((set, get) => ({
   settings: loadSettings(),
   settingsOpen: false,
   extPageUrl: null,
+  pendingLocate: null,
 
   setSetting(key, value) {
     const next = { ...get().settings, [key]: value }
@@ -104,6 +108,10 @@ export const useStore = create<State>((set, get) => ({
 
   closeExtPage() {
     set({ extPageUrl: null })
+  },
+
+  setPendingLocate(v) {
+    set({ pendingLocate: v })
   },
 
   async init() {

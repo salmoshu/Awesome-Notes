@@ -30,6 +30,7 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/projects/{id}/rescan", s.auth(s.handleRescan))
 	mux.HandleFunc("GET /api/projects/{id}/tree", s.auth(s.handleTree))
 	mux.HandleFunc("GET /api/projects/{id}/doc", s.auth(s.handleReadDoc))
+	mux.HandleFunc("GET /api/projects/{id}/search", s.auth(s.handleSearch))
 	mux.HandleFunc("PUT /api/projects/{id}/doc", s.auth(s.handleWriteDoc))
 	mux.HandleFunc("GET /api/projects/{id}/annotations", s.auth(s.handleListAnnotations))
 	mux.HandleFunc("POST /api/projects/{id}/annotations", s.auth(s.handleCreateAnnotation))

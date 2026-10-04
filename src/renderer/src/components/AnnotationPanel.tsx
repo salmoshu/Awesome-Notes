@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import type { Annotation } from '@shared/types'
+import type { Annotation, DocContent } from '@shared/types'
+import { scrollToEl } from '../utils/scroll'
 
 function fmtTime(s: string): string {
   try {
@@ -9,6 +10,86 @@ function fmtTime(s: string): string {
   } catch {
     return s
   }
+}
+
+interface TocEntry {
+  level: number
+  text: string
+}
+
+/** 从已渲染的 .prose 提取标题目录 */
+function buildToc(): TocEntry[] {
+  const prose = document.querySelector('.prose')
+  if (!prose) return []
+  return [...prose.querySelectorAll('h1,h2,h3,h4,h5,h6')].map((el) => ({
+    level: Number(el.tagName.slice(1)),
+    text: (el.textContent ?? '').trim()
+  }))
+}
+
+/** 点击目录项时现查标题节点（避免持有被重渲染替换的旧引用），滚动并返回元素 */
+function scrollToHeading(entry: TocEntry): Element | null {
+  const prose = document.querySelector('.prose')
+  if (!prose) return null
+  const el = [...prose.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(
+    (h) => Number(h.tagName.slice(1)) === entry.level && (h.textContent ?? '').trim() === entry.text
+  )
+  if (!el) return null
+  scrollToEl(el)
+  return el
+}
+
+function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: string }) {
+  const [toc, setToc] = useState<TocEntry[]>([])
+  const [activeText, setActiveText] = useState('')
+
+  useEffect(() => {
+    // 文档/模式变化后重建；等一帧让 ReactMarkdown 完成渲染
+    const t = setTimeout(() => setToc(buildToc()), 60)
+    return () => clearTimeout(t)
+  }, [activeDoc?.path, activeDoc?.content, mode])
+
+  // 滚动时高亮当前所在章节（取视口内最后一个标题）
+  useEffect(() => {
+    const body = document.querySelector('.reader-body')
+    if (!body || toc.length === 0) return
+    const onScroll = (): void => {
+      const headings = document.querySelectorAll('.prose h1,.prose h2,.prose h3,.prose h4,.prose h5,.prose h6')
+      const line = body.getBoundingClientRect().top + 80
+      let current = ''
+      for (const h of headings) {
+        if (h.getBoundingClientRect().top <= line) current = (h.textContent ?? '').trim()
+        else break
+      }
+      setActiveText(current)
+    }
+    body.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => body.removeEventListener('scroll', onScroll)
+  }, [toc])
+
+  if (toc.length === 0) {
+    return <div className="ap-empty">当前文档没有可用的标题目录。</div>
+  }
+
+  return (
+    <div className="toc-list">
+      {toc.map((h, i) => (
+        <button
+          key={i}
+          className={`toc-item lv${h.level} ${activeText === h.text ? 'active' : ''}`}
+          style={{ paddingLeft: 8 + (h.level - 1) * 12 }}
+          title={h.text}
+          onClick={() => {
+            scrollToHeading(h)
+            setActiveText(h.text)
+          }}
+        >
+          {h.text || '(无标题)'}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export default function AnnotationPanel() {
@@ -22,10 +103,17 @@ export default function AnnotationPanel() {
     activeDoc,
     projects,
     activeProjectId,
-    toast
+    toast,
+    mode
   } = useStore()
   const [draft, setDraft] = useState('')
   const [locating, setLocating] = useState<string | null>(null)
+  const [tab, setTab] = useState<'toc' | 'ann'>('ann')
+
+  // 划词批注时自动切回批注页签
+  useEffect(() => {
+    if (composeQuote) setTab('ann')
+  }, [composeQuote])
 
   const project = projects.find((p) => p.id === activeProjectId)
 
@@ -49,7 +137,7 @@ export default function AnnotationPanel() {
   const locate = (a: Annotation) => {
     const el = document.querySelector(`mark.ann-mark[data-ann-id="${a.id}"]`)
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      scrollToEl(el, { center: true })
       el.classList.add('flash')
       setTimeout(() => el.classList.remove('flash'), 1600)
       setLocating(a.id)
@@ -65,43 +153,60 @@ export default function AnnotationPanel() {
   return (
     <aside className="ann-panel">
       <div className="ap-head">
-        <span>批注</span>
-        <span className="ap-count">
-          {open.length} 待处理 · {done.length} 已完成
-        </span>
+        <div className="ap-tabs">
+          <button className={tab === 'toc' ? 'active' : ''} onClick={() => setTab('toc')}>
+            目录
+          </button>
+          <button className={tab === 'ann' ? 'active' : ''} onClick={() => setTab('ann')}>
+            批注 {annotations.length > 0 ? `(${annotations.length})` : ''}
+          </button>
+        </div>
+        {tab === 'ann' && (
+          <span className="ap-count">
+            {open.length} 待处理 · {done.length} 已完成
+          </span>
+        )}
       </div>
 
-      {composeQuote && (
-        <div className="ap-compose">
-          <div className="ap-quote" title={composeQuote.quote}>
-            “{composeQuote.quote.length > 90 ? composeQuote.quote.slice(0, 90) + '…' : composeQuote.quote}”
-          </div>
-          <textarea
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="批注内容：告诉 agent 要做什么修改…"
-            rows={3}
-          />
-          <div className="ap-compose-ops">
-            <button
-              className="btn-primary sm"
-              disabled={!draft.trim()}
-              onClick={() => {
-                void createAnnotation(draft.trim())
-                setDraft('')
-              }}
-            >
-              保存批注
-            </button>
-            <button className="btn-ghost sm" onClick={() => setComposeQuote(null)}>
-              取消
-            </button>
-          </div>
+      {tab === 'toc' && (
+        <div className="ap-body">
+          <TocView activeDoc={activeDoc} mode={mode} />
         </div>
       )}
 
-      <div className="ap-list">
+      {tab === 'ann' && (
+        <div className="ap-body">
+          {composeQuote && (
+            <div className="ap-compose">
+              <div className="ap-quote" title={composeQuote.quote}>
+                “{composeQuote.quote.length > 90 ? composeQuote.quote.slice(0, 90) + '…' : composeQuote.quote}”
+              </div>
+              <textarea
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="批注内容：告诉 agent 要做什么修改…"
+                rows={3}
+              />
+              <div className="ap-compose-ops">
+                <button
+                  className="btn-primary sm"
+                  disabled={!draft.trim()}
+                  onClick={() => {
+                    void createAnnotation(draft.trim())
+                    setDraft('')
+                  }}
+                >
+                  保存批注
+                </button>
+                <button className="btn-ghost sm" onClick={() => setComposeQuote(null)}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="ap-list">
         {annotations.length === 0 && !composeQuote && (
           <div className="ap-empty">
             本文档暂无批注。
@@ -146,7 +251,9 @@ export default function AnnotationPanel() {
             </div>
           </div>
         ))}
-      </div>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

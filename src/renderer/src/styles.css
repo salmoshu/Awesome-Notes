@@ -350,10 +350,81 @@ input, textarea { font-family: inherit; }
 }
 .ap-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  padding: 10px 14px; border-bottom: 1px solid var(--line);
   font-weight: 700; font-size: 14px;
 }
+.ap-tabs { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.ap-tabs button {
+  border: none; background: transparent; color: var(--ink2);
+  font-size: 12.5px; font-weight: 600; padding: 4px 12px; border-radius: 6px;
+}
+.ap-tabs button.active { background: var(--accent); color: #fff; }
 .ap-count { font-size: 11.5px; color: var(--ink3); font-weight: 400; }
+/* 页签内容体：占满剩余高度并让列表滚动 */
+.ap-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---- 右侧目录（TOC） ---- */
+.toc-list { flex: 1; overflow-y: auto; padding: 8px 6px 20px; }
+.toc-item {
+  display: block; width: 100%; border: none; background: transparent; text-align: left;
+  color: var(--ink2); font-size: 12.8px; line-height: 1.5; padding-top: 4px; padding-bottom: 4px;
+  padding-right: 8px; border-radius: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.toc-item:hover { background: var(--accent-soft); color: var(--accent); }
+.toc-item.active { color: var(--accent); font-weight: 700; }
+.toc-item.lv1 { font-weight: 700; color: var(--ink); }
+
+/* 搜索命中闪烁（正文内） */
+.prose mark.search-hit { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 2px; }
+.prose mark.search-hit.flash { animation: search-flash 0.5s ease-out 3; }
+@keyframes search-flash {
+  from { box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.55); }
+  to { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+}
+
+/* ---- 侧栏搜索页签 ---- */
+.search-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sp-head { display: flex; gap: 6px; padding: 2px 0 8px; }
+.sp-head input {
+  flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--sidebar-line);
+  border-radius: 8px; background: var(--sb-input-bg); color: var(--sidebar-ink);
+  font-size: 12.5px; outline: none;
+}
+.sp-head input:focus { border-color: var(--accent); }
+.sp-results { flex: 1; overflow-y: auto; min-height: 0; padding: 0 2px 20px; }
+.sp-summary { font-size: 11px; color: var(--sidebar-ink2); padding: 2px 6px 8px; }
+.sp-file { margin-bottom: 6px; }
+.sp-file-name {
+  display: flex; align-items: center; gap: 6px; width: 100%; border: none;
+  background: transparent; color: var(--sidebar-ink); font-size: 12.8px; font-weight: 600;
+  padding: 5px 6px; border-radius: 6px; text-align: left;
+}
+.sp-file-name:hover { background: var(--sb-hover); }
+.sp-file-text {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sp-file-count {
+  flex: none; font-size: 10.5px; background: var(--sb-active); color: var(--sb-active-ink);
+  padding: 0 7px; border-radius: 999px;
+}
+.sp-matches { padding: 0 4px 2px 24px; }
+.sp-match {
+  display: flex; align-items: baseline; gap: 7px; width: 100%; border: none;
+  background: transparent; text-align: left; padding: 3px 6px; border-radius: 6px;
+  color: var(--sidebar-ink2); font-size: 11.8px; line-height: 1.55;
+}
+.sp-match:hover { background: var(--sb-hover); }
+.sp-line {
+  flex: none; font-size: 10px; color: var(--ink3);
+  font-variant-numeric: tabular-nums; min-width: 20px; text-align: right;
+}
+.sp-text {
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  word-break: break-all; user-select: text;
+}
+.sp-kw { background: #fde68a; color: inherit; border-radius: 2px; padding: 0 1px; }
+.sp-more { font-size: 10.5px; color: var(--ink3); padding: 2px 6px; }
 
 .ap-compose { padding: 12px 14px; border-bottom: 1px solid var(--line); background: #fffbeb; }
 .ap-quote {

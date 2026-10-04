@@ -46,6 +46,11 @@ var skipDirs = map[string]bool{
 	".idea": true, ".vscode": true, ".toolchain": true,
 }
 
+// skipName 目录是否跳过：具名黑名单 + electron-builder 临时输出目录（release-v*）
+func skipName(name string) bool {
+	return skipDirs[name] || strings.HasPrefix(name, "release-")
+}
+
 // registry 项目注册表（projects.json）。
 type registry struct {
 	mu       sync.Mutex
@@ -150,7 +155,7 @@ func countDocs(root string) int {
 			return nil
 		}
 		if d.IsDir() {
-			if skipDirs[d.Name()] {
+			if skipName(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -188,7 +193,7 @@ func scanTree(root string) (*DocNode, error) {
 				childRel = rel + "/" + name
 			}
 			if e.IsDir() {
-				if skipDirs[name] {
+				if skipName(name) {
 					continue
 				}
 				sub := walk(filepath.Join(dir, name), childRel)

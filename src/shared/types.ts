@@ -66,6 +66,26 @@ export interface GitStatus {
   err?: string
 }
 
+// ---- 项目内全文搜索（sidecar /api/projects/:id/search） ----
+
+export interface SearchMatch {
+  line: number
+  text: string
+}
+
+export interface SearchFileResult {
+  path: string
+  ext: string
+  count: number
+  matches: SearchMatch[]
+}
+
+export interface SearchResponse {
+  query: string
+  files: SearchFileResult[]
+  truncated: boolean
+}
+
 // preload 暴露给渲染进程的桥
 export interface AwesomeNotesBridge {
   getApiInfo(): Promise<ApiInfo>

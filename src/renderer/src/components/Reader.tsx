@@ -4,6 +4,38 @@ import { apiInfo } from '../api'
 import MarkdownView, { selectionAnchor } from './MarkdownView'
 import EditorPane from './EditorPane'
 import Logo from './Logo'
+import { scrollToEl } from '../utils/scroll'
+
+/** 在 .prose 内查找关键词首个出现处，滚动并短暂高亮 */
+function locateKeyword(keyword: string): boolean {
+  const prose = document.querySelector('.prose')
+  if (!prose) return false
+  const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT)
+  const needle = keyword.toLowerCase()
+  let n = walker.nextNode() as Text | null
+  while (n) {
+    const idx = (n.nodeValue ?? '').toLowerCase().indexOf(needle)
+    if (idx >= 0) {
+      const mid = n.splitText(idx)
+      mid.splitText(needle.length)
+      const mark = document.createElement('mark')
+      mark.className = 'search-hit'
+      mid.parentNode?.replaceChild(mark, mid)
+      mark.appendChild(mid)
+      scrollToEl(mark, { center: true })
+      setTimeout(() => {
+        const parent = mark.parentNode
+        if (!parent) return
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark)
+        parent.removeChild(mark)
+        parent.normalize?.()
+      }, 2400)
+      return true
+    }
+    n = walker.nextNode() as Text | null
+  }
+  return false
+}
 
 export default function Reader() {
   const {
@@ -11,6 +43,7 @@ export default function Reader() {
     docLoading,
     mode,
     setMode,
+    pendingLocate,
     dirty,
     saving,
     saveDoc,
@@ -31,6 +64,20 @@ export default function Reader() {
   useEffect(() => {
     void apiInfo().then((i) => setRawBase(i.base))
   }, [])
+
+  // 搜索结果跳转：文档渲染完成后滚动到关键词命中处
+  useEffect(() => {
+    if (!pendingLocate || !activeDoc || mode !== 'read') return
+    if (pendingLocate.path !== activeDoc.path) return
+    const kw = pendingLocate.keyword
+    const t = setTimeout(() => {
+      useStore.getState().setPendingLocate(null)
+      if (!locateKeyword(kw)) {
+        useStore.getState().toast('info', '已打开文档，但未能定位到关键词位置')
+      }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [activeDoc, mode, pendingLocate])
 
   const openCount = annotations.filter((a) => a.status === 'open').length
   const isMd = activeDoc && ['md', 'markdown', 'mdown', 'mkd'].includes(activeDoc.ext)
