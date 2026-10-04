@@ -7,3 +7,4 @@ sidecar/data/
 .toolchain/
 *.log
 .DS_Store
+release-v*/
