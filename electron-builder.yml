@@ -18,6 +18,10 @@ publish:
 win:
   target:
     - nsis
+  # 安装包名不含空格：latest.yml 的 url、GitHub 资产名与实际文件三者一致，
+  # 否则 GitHub 把空格资产名转成点号后，electron-updater 按空格→连字符拼出的
+  # 下载地址会 404（v0.2.0/v0.2.1 即踩此坑）
+  artifactName: "Awesome-Notes-Setup-${version}.exe"
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

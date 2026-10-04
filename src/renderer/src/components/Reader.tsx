@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { apiInfo } from '../api'
 import MarkdownView, { selectionAnchor } from './MarkdownView'
 import EditorPane from './EditorPane'
 import Logo from './Logo'
@@ -23,7 +24,13 @@ export default function Reader() {
   } = useStore()
 
   const proseWrapRef = useRef<HTMLDivElement>(null)
-  const [pop, setPop] = useState<{ x: number; y: number } | null>(null)
+  const [pop, setPop] = useState<{ x: number; y: number; below?: boolean } | null>(null)
+  const [rawBase, setRawBase] = useState('')
+
+  // HTML 文档经 sidecar /raw 以真实 URL 加载（相对路径资源与页内脚本可用）
+  useEffect(() => {
+    void apiInfo().then((i) => setRawBase(i.base))
+  }, [])
 
   const openCount = annotations.filter((a) => a.status === 'open').length
   const isMd = activeDoc && ['md', 'markdown', 'mdown', 'mkd'].includes(activeDoc.ext)
@@ -43,7 +50,14 @@ export default function Reader() {
     const sel = window.getSelection()!
     const rect = sel.getRangeAt(0).getBoundingClientRect()
     const wrapRect = wrap.getBoundingClientRect()
-    setPop({ x: rect.left - wrapRect.left + rect.width / 2, y: rect.top - wrapRect.top - 8 })
+    // 气泡挂在滚动容器内（position:absolute），需把视口坐标换算成内容坐标（补 scrollTop）
+    const x = rect.left - wrapRect.left + rect.width / 2
+    const aboveTop = rect.top - wrapRect.top
+    const below = aboveTop < 48
+    const y = below
+      ? rect.bottom - wrapRect.top + wrap.scrollTop + 10
+      : aboveTop + wrap.scrollTop - 10
+    setPop({ x, y, below })
     ;(onMouseUp as unknown as { _anchor?: unknown })._anchor = anchor
   }, [])
 
@@ -132,14 +146,24 @@ export default function Reader() {
             }}
           />
         ) : isHtml ? (
-          <iframe className="html-view" sandbox="" srcDoc={activeDoc.content} title={activeDoc.path} />
+          rawBase && (
+            <iframe
+              className="html-view"
+              sandbox="allow-scripts allow-forms allow-popups"
+              src={`${rawBase}/raw/${activeProjectId}/${activeDoc.path
+                .split('/')
+                .map(encodeURIComponent)
+                .join('/')}`}
+              title={activeDoc.path}
+            />
+          )
         ) : (
           <pre className="txt-view">{activeDoc.content}</pre>
         )}
 
         {pop && mode === 'read' && isMd && (
           <button
-            className="ann-pop"
+            className={`ann-pop ${pop.below ? 'below' : ''}`}
             style={{ left: pop.x, top: pop.y }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={startCompose}

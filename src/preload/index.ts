@@ -19,7 +19,19 @@ const bridge: AwesomeNotesBridge = {
     const listener = (_e: Electron.IpcRendererEvent, payload: UpdateStatusEvent) => cb(payload)
     ipcRenderer.on('update-status-changed', listener)
     return () => ipcRenderer.removeListener('update-status-changed', listener)
-  }
+  },
+  onOpenExternalPage: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, url: string) => cb(url)
+    ipcRenderer.on('open-external-page', listener)
+    return () => ipcRenderer.removeListener('open-external-page', listener)
+  },
+  onExtPageStatus: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, payload: { url: string; code: number }) =>
+      cb(payload)
+    ipcRenderer.on('ext-page-status', listener)
+    return () => ipcRenderer.removeListener('ext-page-status', listener)
+  },
+  openInSystemBrowser: (url) => ipcRenderer.invoke('shell:open-external', url)
 }
 
 contextBridge.exposeInMainWorld('awesomeNotes', bridge)

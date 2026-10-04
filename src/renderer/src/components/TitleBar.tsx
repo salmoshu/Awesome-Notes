@@ -26,7 +26,6 @@ export default function TitleBar() {
         <Logo size={18} />
         <span className="tb-name">Awesome-Notes</span>
         {version && <span className="tb-version">{`v${version}`}</span>}
-        <span className="tb-sub">项目文档阅读与批注</span>
       </div>
       <div className="tb-btns">
         <button className="tb-set" onClick={openSettings} title="设置">

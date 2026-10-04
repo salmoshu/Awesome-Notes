@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { startSidecar, stopSidecar } from './sidecar.js'
@@ -28,6 +28,7 @@ if (!app.requestSingleInstanceLock()) {
       dialog.showErrorBox('Awesome-Notes 启动失败', String(err))
     }
     createWindow()
+    watchExternalPageStatus()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -39,6 +40,45 @@ if (!app.requestSingleInstanceLock()) {
     if (process.platform !== 'darwin') app.quit()
   })
   app.on('before-quit', stopSidecar)
+}
+
+// 外部链接统一在应用内浮层打开（主窗口导航被拦截后经 'open-external-page' 通知渲染层）；
+// 浮层 webview 走独立 partition，监控其主文档 HTTP 状态以展示美化错误页
+function openInOverlay(url: string): void {
+  if (/^https?:/i.test(url)) mainWindow?.webContents.send('open-external-page', url)
+}
+
+app.on('web-contents-created', (_e, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) openInOverlay(url)
+    else if (/^(mailto|tel):/i.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  // 主窗口自身的导航（如 Markdown 链接误以 _self 打开）转浮层；webview 内导航放行
+  contents.on('will-navigate', (e, url) => {
+    if (mainWindow && contents.id === mainWindow.webContents.id) {
+      const isAppUrl = process.env.ELECTRON_RENDERER_URL
+        ? url.startsWith(process.env.ELECTRON_RENDERER_URL)
+        : url.startsWith('file://')
+      if (!isAppUrl) {
+        e.preventDefault()
+        openInOverlay(url)
+      }
+    }
+  })
+})
+
+function watchExternalPageStatus(): void {
+  const extSession = session.fromPartition('persist:an-external')
+  extSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.resourceType === 'mainFrame' && details.statusCode >= 400) {
+      mainWindow?.webContents.send('ext-page-status', {
+        url: details.url,
+        code: details.statusCode
+      })
+    }
+    callback({ cancel: false })
+  })
 }
 
 function createWindow(): void {
@@ -54,7 +94,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true
     }
   })
 
@@ -86,6 +127,12 @@ ipcMain.handle('dialog:select-folder', async () => {
 
 ipcMain.handle('shell:reveal', (_e, p: string) => {
   shell.showItemInFolder(p)
+})
+
+// 浮层「用系统浏览器打开」；仅放行 http(s)
+ipcMain.handle('shell:open-external', (_e, url: string) => {
+  if (!/^https?:/i.test(url)) throw new Error('仅支持 http(s) 链接')
+  return shell.openExternal(url)
 })
 
 ipcMain.on('win:minimize', () => mainWindow?.minimize())

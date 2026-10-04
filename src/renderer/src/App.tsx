@@ -7,14 +7,18 @@ import AnnotationPanel from './components/AnnotationPanel'
 import Toasts from './components/Toasts'
 import UpdateCard from './components/UpdateCard'
 import SettingsModal from './components/SettingsModal'
+import ExternalPage from './components/ExternalPage'
 import Logo from './components/Logo'
 
 export default function App() {
-  const { init, ready, fatalError, annPanelOpen, activeDoc } = useStore()
+  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage } = useStore()
 
   useEffect(() => {
     void init()
   }, [init])
+
+  // 主进程拦截到的外链（导航 / window.open）转应用内浮层；浮层未挂载也能收到
+  useEffect(() => window.awesomeNotes?.onOpenExternalPage((url) => useStore.getState().openExtPage(url)), [])
 
   if (!ready) {
     return (
@@ -52,6 +56,7 @@ export default function App() {
       <Toasts />
       <UpdateCard />
       <SettingsModal />
+      {extPageUrl && <ExternalPage url={extPageUrl} onClose={closeExtPage} />}
     </div>
   )
 }

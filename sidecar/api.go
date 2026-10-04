@@ -36,6 +36,16 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/projects/{id}/annotations", s.auth(s.handleUpdateAnnotation))
 	mux.HandleFunc("DELETE /api/projects/{id}/annotations", s.auth(s.handleDeleteAnnotation))
 	mux.HandleFunc("GET /api/projects/{id}/annotations-file", s.auth(s.handleAnnotationFile))
+	mux.HandleFunc("GET /api/projects/{id}/git/status", s.auth(s.handleGitStatus))
+	mux.HandleFunc("POST /api/projects/{id}/git/add", s.auth(s.handleGitAdd))
+	mux.HandleFunc("POST /api/projects/{id}/git/reset", s.auth(s.handleGitReset))
+	mux.HandleFunc("POST /api/projects/{id}/git/discard", s.auth(s.handleGitDiscard))
+	mux.HandleFunc("POST /api/projects/{id}/git/commit", s.auth(s.handleGitCommit))
+	mux.HandleFunc("POST /api/projects/{id}/git/sync", s.auth(s.handleGitSync))
+	// /raw/{id}/{path...}：项目内文件直读（HTML 文档以真实 URL 嵌入 iframe，
+	// 使相对路径资源与页内脚本可用）。iframe 无法携带请求头，故不走 token 校验，
+	// 但仅限已导入项目内的文件、仅监听 127.0.0.1。
+	mux.HandleFunc("GET /raw/{id}/{path...}", s.handleRawFile)
 }
 
 // auth 校验令牌；本地工具放开 CORS 以便 dev:web 预览（仅监听 127.0.0.1）。
@@ -296,4 +306,26 @@ func (s *server) handleAnnotationFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"path": annFilePath(p.Path)})
+}
+
+// handleRawFile 直读项目内文件（HTML 文档/静态资源），供 iframe 按真实 URL 加载。
+func (s *server) handleRawFile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	p := s.registry.get(id)
+	if p == nil {
+		writeError(w, 404, "项目不存在")
+		return
+	}
+	rel := r.PathValue("path")
+	abs, err := resolveDoc(p.Path, rel)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil || info.IsDir() {
+		writeError(w, 404, "文件不存在")
+		return
+	}
+	http.ServeFile(w, r, abs)
 }

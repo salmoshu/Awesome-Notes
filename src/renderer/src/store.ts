@@ -31,10 +31,13 @@ interface State {
   toasts: Toast[]
   settings: AppSettings
   settingsOpen: boolean
+  extPageUrl: string | null
 
   setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   openSettings(): void
   closeSettings(): void
+  openExtPage(url: string): void
+  closeExtPage(): void
 
   init(): Promise<void>
   toast(kind: Toast['kind'], text: string): void
@@ -78,6 +81,7 @@ export const useStore = create<State>((set, get) => ({
   toasts: [],
   settings: loadSettings(),
   settingsOpen: false,
+  extPageUrl: null,
 
   setSetting(key, value) {
     const next = { ...get().settings, [key]: value }
@@ -92,6 +96,14 @@ export const useStore = create<State>((set, get) => ({
 
   closeSettings() {
     set({ settingsOpen: false })
+  },
+
+  openExtPage(url) {
+    set({ extPageUrl: url })
+  },
+
+  closeExtPage() {
+    set({ extPageUrl: null })
   },
 
   async init() {

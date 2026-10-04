@@ -44,6 +44,28 @@ export interface Annotation {
   updatedAt: string
 }
 
+// ---- Git 集成（sidecar /api/projects/:id/git/*） ----
+
+export interface GitChange {
+  /** 相对项目根（/ 分隔） */
+  path: string
+  /** 重命名前的路径 */
+  orig?: string
+  /** 暂存区状态码（M/A/D/R/U/?，空格为无变化） */
+  index: string
+  /** 工作区状态码 */
+  work: string
+}
+
+export interface GitStatus {
+  repo: boolean
+  branch: string
+  ahead: number
+  behind: number
+  changes: GitChange[]
+  err?: string
+}
+
 // preload 暴露给渲染进程的桥
 export interface AwesomeNotesBridge {
   getApiInfo(): Promise<ApiInfo>
@@ -61,6 +83,12 @@ export interface AwesomeNotesBridge {
   onUpdateStatus(cb: (e: UpdateStatusEvent) => void): () => void
   /** 读取 release-notes.md 中当前版本小节；找不到返回 null */
   getCurrentReleaseNotes(): Promise<string | null>
+  /** 应用内打开外部网页（浮层）。来自主窗口导航拦截 / window.open */
+  onOpenExternalPage(cb: (url: string) => void): () => void
+  /** 浮层页面主文档的 HTTP 状态（>=400 时用于展示美化错误页） */
+  onExtPageStatus(cb: (e: { url: string; code: number }) => void): () => void
+  /** 用系统浏览器打开（浮层右上角 ↗） */
+  openInSystemBrowser(url: string): Promise<void>
 }
 
 // ---- 版本更新（对齐 Nav-Tools UpdateService 语义） ----

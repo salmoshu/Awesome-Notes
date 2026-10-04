@@ -1,13 +1,63 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type AnchorHTMLAttributes } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Annotation } from '@shared/types'
+import { useStore } from '../store'
 
 interface Props {
   content: string
   annotations: Annotation[]
   onSelectAnn: (id: string) => void
+}
+
+/** GFM 自动链接只裁剪 ASCII 标点，中文句号/逗号乃至后随文字会被并入 URL ——
+ *  在第一个 CJK 字符处截断，再剥掉尾部 ASCII 标点 */
+const CJK_IN_URL = /[\u3000-\u303f\u3040-\u30ff\u4e00-\u9fff\uff00-\uffef]/
+const TRAILING_PUNCT = /[.,;:!?)\]}>～]+$/g
+
+function cleanLinkText(s: string): string {
+  const m = s.match(CJK_IN_URL)
+  let t = m && m.index !== undefined ? s.slice(0, m.index) : s
+  t = t.replace(TRAILING_PUNCT, '')
+  return t || s
+}
+
+/** react-markdown 传入的 href 已被 URI 编码（。→ %E3%80%82），先解码再清洗 */
+function cleanHref(raw: string): string {
+  let s = raw
+  try {
+    s = decodeURIComponent(raw)
+  } catch {
+    /* 保留原值 */
+  }
+  return cleanLinkText(s)
+}
+
+function MarkdownAnchor({
+  href,
+  children,
+  ...rest
+}: AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element {
+  const cleaned = typeof href === 'string' ? cleanHref(href) : href
+  const external = typeof cleaned === 'string' && /^https?:/i.test(cleaned)
+  const label = typeof children === 'string' ? cleanLinkText(children) : children
+  return (
+    <a
+      href={cleaned}
+      {...rest}
+      onClick={
+        external
+          ? (e) => {
+              e.preventDefault()
+              useStore.getState().openExtPage(cleaned as string)
+            }
+          : undefined
+      }
+    >
+      {label}
+    </a>
+  )
 }
 
 /** 收集容器内所有文本节点与拼接全文 */
@@ -84,7 +134,11 @@ export default function MarkdownView({ content, annotations, onSelectAnn }: Prop
 
   const rendered = useMemo(
     () => (
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{ a: MarkdownAnchor }}
+      >
         {content}
       </ReactMarkdown>
     ),
