@@ -178,6 +178,78 @@ func (s *server) gitPathOp(w http.ResponseWriter, r *http.Request, op func(p *Pr
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
+// handleGitDiff 查看单个文件相对 HEAD 的更改（未跟踪文件展示全文为新增）。
+func (s *server) handleGitDiff(w http.ResponseWriter, r *http.Request) {
+	p := s.project(w, r)
+	if p == nil {
+		return
+	}
+	rel := strings.TrimSpace(r.URL.Query().Get("path"))
+	if rel == "" {
+		writeError(w, 400, "缺少 path 参数")
+		return
+	}
+	if _, err := resolveDoc(p.Path, rel); err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	prefix := repoPrefix(p.Path)
+	repoRel := prefix + rel
+
+	tracked, err := gitRun(p.Path, 20*time.Second, "ls-files", "--", repoRel)
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	var diff string
+	if strings.TrimSpace(tracked) != "" {
+		out, err := gitRun(p.Path, 20*time.Second, "diff", "HEAD", "--", repoRel)
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		diff = out
+	} else {
+		// 未跟踪：读文件内容合成“新增”diff
+		abs, err := resolveDoc(p.Path, rel)
+		if err != nil {
+			writeError(w, 400, err.Error())
+			return
+		}
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			writeError(w, 500, err.Error())
+			return
+		}
+		var b strings.Builder
+		b.WriteString("--- /dev/null\n")
+		b.WriteString("+++ " + rel + "\n")
+		b.WriteString("@@ -0,0 +1," + itoa(countLines(data)) + " @@\n")
+		for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+			b.WriteString("+" + line + "\n")
+		}
+		diff = b.String()
+	}
+	writeJSON(w, 200, map[string]any{"path": rel, "diff": diff})
+}
+
+func countLines(data []byte) int {
+	if len(data) == 0 {
+		return 0
+	}
+	n := 1
+	for _, c := range data {
+		if c == '\n' {
+			n++
+		}
+	}
+	return n
+}
+
+func itoa(n int) string {
+	return strconv.Itoa(n)
+}
+
 func (s *server) handleGitAdd(w http.ResponseWriter, r *http.Request) {
 	s.gitPathOp(w, r, func(p *Project, repoPaths, _ []string) error {
 		_, err := gitRun(p.Path, 30*time.Second, append([]string{"add", "--"}, repoPaths...)...)

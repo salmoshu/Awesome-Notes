@@ -8,7 +8,7 @@ import Toasts from './components/Toasts'
 import UpdateCard from './components/UpdateCard'
 import SettingsModal from './components/SettingsModal'
 import ExternalPage from './components/ExternalPage'
-import RemoteDialog from './components/RemoteDialog'
+import AddProjectDialog from './components/AddProjectDialog'
 import Logo from './components/Logo'
 
 export default function App() {
@@ -71,8 +71,7 @@ export default function App() {
       <Toasts />
       <UpdateCard />
       <SettingsModal />
-      <RemoteDialog />
-      <RemoteDialog />
+      <AddProjectDialog />
       {extPageUrl && <ExternalPage url={extPageUrl} onClose={closeExtPage} />}
     </div>
   )

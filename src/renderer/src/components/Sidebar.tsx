@@ -120,9 +120,8 @@ export default function Sidebar() {
     activeProjectId,
     selectProject,
     removeProject,
-    importProject,
     openTab,
-    openRemoteDialog,
+    openAddProject,
     disconnectRemote,
     rescan,
     tree,
@@ -145,16 +144,6 @@ export default function Sidebar() {
   )
   const hiddenIds = useMemo(() => hiddenProjectIds(), [storeRev])
   const displayName = (p: Project) => projectAlias(p.id) ?? p.name
-
-  const onImport = async () => {
-    if (window.awesomeNotes) {
-      const path = await window.awesomeNotes.selectFolder()
-      if (path) await importProject(path)
-    } else {
-      const path = window.prompt('纯 Web 预览模式：请输入项目目录的绝对路径')
-      if (path) await importProject(path)
-    }
-  }
 
   const onRemove = async (p: Project) => {
     if (window.confirm(`确定从列表移除「${displayName(p)}」？（不会删除磁盘文件）`)) {
@@ -324,12 +313,9 @@ export default function Sidebar() {
                 </button>
               )
             })}
-            <div className="import-menu">
-              <button className="primary" onClick={() => void onImport()}>
-                ＋ 本地文件夹
-              </button>
-              <button onClick={openRemoteDialog}>🌐 远程连接（WSL / Docker / SSH）</button>
-            </div>
+            <button className="proj-import" onClick={openAddProject}>
+              ＋ 添加项目
+            </button>
           </div>
         )}
       </div>

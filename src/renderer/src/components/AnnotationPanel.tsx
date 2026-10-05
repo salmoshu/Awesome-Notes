@@ -204,16 +204,6 @@ export default function AnnotationPanel() {
             批注 {annotations.length > 0 ? `(${annotations.length})` : ''}
           </button>
         </div>
-        {tab === 'ann' && annotations.length > 0 && (
-          <div className="ap-batch-ops">
-            <button onClick={() => void copyAllAnnotations()} title="复制当前文档全部批注（整体发给 agent）">
-              ⧉ 复制全部批注
-            </button>
-            <button onClick={() => void copyAnnFileAddress()} title="复制批注库文件地址">
-              ▤ 批注库地址
-            </button>
-          </div>
-        )}
         {tab === 'ann' && (
           <span className="ap-count">
             {open.length} 待处理 · {done.length} 已完成
@@ -229,6 +219,16 @@ export default function AnnotationPanel() {
 
       {tab === 'ann' && (
         <div className="ap-body">
+          {annotations.length > 0 && (
+            <div className="ap-batch-ops">
+              <button onClick={() => void copyAllAnnotations()} title="复制当前文档全部批注（整体发给 agent）">
+                ⧉ 复制全部批注
+              </button>
+              <button onClick={() => void copyAnnFileAddress()} title="复制批注库文件地址">
+                ▤ 批注库地址
+              </button>
+            </div>
+          )}
           {composeQuote && (
             <div className="ap-compose">
               <div className="ap-quote" title={composeQuote.quote}>

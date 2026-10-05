@@ -44,7 +44,7 @@ interface State {
   projects: Project[]
   localProjects: Project[]
   remotes: RemoteConfig[]
-  remoteDialogOpen: boolean
+  addProjectOpen: boolean
   activeProjectId: string | null
   tree: DocNode | null
   treeLoading: boolean
@@ -70,8 +70,8 @@ interface State {
   setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   openSettings(): void
   closeSettings(): void
-  openRemoteDialog(): void
-  closeRemoteDialog(): void
+  openAddProject(): void
+  closeAddProject(): void
   connectRemote(host: string, port: number, token: string, name?: string): Promise<void>
   reconnectRemote(remoteId: string): Promise<void>
   disconnectRemote(remoteId: string): void
@@ -151,7 +151,7 @@ export const useStore = create<State>((set, get) => ({
   projects: [],
   localProjects: [],
   remotes: loadRemotes(),
-  remoteDialogOpen: false,
+  addProjectOpen: false,
   activeProjectId: null,
   tree: null,
   treeLoading: false,
@@ -188,12 +188,12 @@ export const useStore = create<State>((set, get) => ({
     set({ settingsOpen: false })
   },
 
-  openRemoteDialog() {
-    set({ remoteDialogOpen: true })
+  openAddProject() {
+    set({ addProjectOpen: true })
   },
 
-  closeRemoteDialog() {
-    set({ remoteDialogOpen: false })
+  closeAddProject() {
+    set({ addProjectOpen: false })
   },
 
   async connectRemote(host, port, token, name) {
@@ -207,7 +207,7 @@ export const useStore = create<State>((set, get) => ({
           ...get().projects.filter((p) => p.remoteId && p.remoteId !== remote.id),
           ...projects
         ]),
-        remoteDialogOpen: false
+        addProjectOpen: false
       })
       get().toast('ok', `已连接 ${remote.name}（${projects.length} 个项目）`)
     } catch (err) {

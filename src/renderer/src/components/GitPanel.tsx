@@ -27,7 +27,8 @@ function ChangeRow({
   onOpen,
   onStage,
   onUnstage,
-  onDiscard
+  onDiscard,
+  onDiff
 }: {
   change: GitChange
   code: string
@@ -35,6 +36,7 @@ function ChangeRow({
   onStage(): void
   onUnstage(): void
   onDiscard(): void
+  onDiff(): void
 }) {
   const b = badge(code)
   const name = change.path.split('/').pop() ?? change.path
@@ -44,6 +46,7 @@ function ChangeRow({
       <span className={`git-badge ${b.cls}`}>{b.letter}</span>
       <span className="git-name">{name}</span>
       <span className="git-ops" onClick={(e) => e.stopPropagation()}>
+        <button title="查看更改" onClick={onDiff}>≡</button>
         <button title="暂存" onClick={onStage}>＋</button>
         <button title="取消暂存" onClick={onUnstage}>－</button>
         <button className="danger" title="丢弃改动" onClick={onDiscard}>↶</button>
@@ -59,6 +62,23 @@ export default function GitPanel({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [diff, setDiff] = useState<{ path: string; text: string } | null>(null)
+  const [diffLoading, setDiffLoading] = useState(false)
+
+  const showDiff = useCallback(
+    (path: string) => {
+      setDiff({ path, text: '' })
+      setDiffLoading(true)
+      apiFor<{ diff: string }>(projectId)('GET', `/api/projects/${projectId}/git/diff?path=${encodeURIComponent(path)}`)
+        .then((r) => setDiff({ path, text: r.diff ?? '' }))
+        .catch((err) => {
+          setDiff(null)
+          toast('err', `获取更改失败：${err}`)
+        })
+        .finally(() => setDiffLoading(false))
+    },
+    [projectId, toast]
+  )
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -159,6 +179,7 @@ export default function GitPanel({ projectId }: { projectId: string }) {
               onStage={() => void stage(c)}
               onUnstage={() => void unstage(c)}
               onDiscard={() => discard(c)}
+              onDiff={() => showDiff(c.path)}
             />
           ))}
           {unstaged.length > 0 && <div className="git-group">更改（{unstaged.length}）</div>}
@@ -171,6 +192,7 @@ export default function GitPanel({ projectId }: { projectId: string }) {
               onStage={() => void stage(c)}
               onUnstage={() => void unstage(c)}
               onDiscard={() => discard(c)}
+              onDiff={() => showDiff(c.path)}
             />
           ))}
         </div>
@@ -178,6 +200,36 @@ export default function GitPanel({ projectId }: { projectId: string }) {
 
       {status && staged.length === 0 && unstaged.length === 0 && (
         <div className="sb-empty">工作区干净，没有待提交的更改。</div>
+      )}
+
+      {diff && (
+        <div className="st-notes-mask" onClick={() => setDiff(null)}>
+          <div className="git-diff-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="gd-title">更改 · {diff.path.split('/').pop()}</div>
+            <div className="gd-path">{diff.path}</div>
+            <div className="gd-body">
+              {diffLoading ? (
+                <div className="st-hint">读取中…</div>
+              ) : (
+                (diff.text || '（无差异）').split('\n').map((line, i) => (
+                  <div
+                    key={i}
+                    className={
+                      'gd-line ' +
+                      (line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : line.startsWith('@@') ? 'hunk' : '')
+                    }
+                  >
+                    {line || ' '}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="gd-ops">
+              <button className="btn-ghost sm" onClick={() => void openDoc(diff.path)}>打开文档</button>
+              <button className="btn-primary sm" onClick={() => setDiff(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="git-commit">
