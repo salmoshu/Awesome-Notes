@@ -134,18 +134,6 @@ export default function Reader() {
     window.getSelection()?.removeAllRanges()
   }
 
-  const copyDocAddress = async () => {
-    if (!project || !activeDoc) return
-    const abs = `${project.path}\\${activeDoc.path.replace(/\//g, '\\')}`
-    const text = [
-      '[Awesome-Notes 文档]',
-      `链接: awesome-notes://${project.name}/${activeDoc.path}`,
-      `文档: ${abs}`,
-      `项目: ${project.path}`
-    ].join('\n')
-    await navigator.clipboard.writeText(text)
-    toast('ok', '文档地址已复制，可发给 agent')
-  }
 
   if (!activeDoc) {
     return (
@@ -154,11 +142,7 @@ export default function Reader() {
           <div className="re-hint">读取中…</div>
         ) : (
           <>
-            <Logo size={56} />
-            <div className="re-title">从左侧选择一篇文档开始阅读</div>
-            <div className="re-hint">
-              支持 Markdown / HTML / TXT；选中文字即可批注，批注地址可复制给 agent 执行修改。
-            </div>
+            <Logo size={72} />
           </>
         )}
       </div>
@@ -178,7 +162,7 @@ export default function Reader() {
                 阅读
               </button>
               <button className={mode === 'edit' ? 'active' : ''} onClick={() => setMode('edit')}>
-                编辑{dirty ? ' •' : ''}
+                原文{dirty ? ' •' : ''}
               </button>
             </div>
           )}
@@ -187,13 +171,6 @@ export default function Reader() {
               {saving ? '保存中…' : dirty ? '保存 (Ctrl+S)' : '已保存'}
             </button>
           )}
-          <button
-            className="rt-btn icon"
-            onClick={() => void copyDocAddress()}
-            title="复制文档地址（发给 agent）"
-          >
-            ⧉
-          </button>
           <button
             className={`rt-btn icon ${annPanelOpen ? 'active' : ''}`}
             onClick={toggleAnnPanel}
@@ -208,7 +185,17 @@ export default function Reader() {
 
       {findOpen && <FindBar onClose={() => setFindOpen(false)} />}
 
-      <div className="reader-body" ref={proseWrapRef} onMouseUp={onMouseUp}>
+      <div
+        className="reader-body"
+        ref={proseWrapRef}
+        onMouseUp={onMouseUp}
+        onDoubleClick={(e) => {
+          // 阅读模式双击正文进入原文编辑（链接与批注高亮上双击除外）
+          if (mode === 'read' && isMd && !(e.target as HTMLElement).closest('a, mark')) {
+            setMode('edit')
+          }
+        }}
+      >
         {mode === 'edit' ? (
           <EditorPane />
         ) : isMd ? (

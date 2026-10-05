@@ -14,6 +14,8 @@ export interface AppSettings {
   annPanelDefaultOpen: boolean
   /** 编辑器自动保存 */
   autoSave: boolean
+  /** 文件树/搜索支持的文档格式组（key 见 DOC_FORMAT_GROUPS） */
+  docFormats: string[]
   /** 自动保存延迟（ms） */
   autoSaveDelayMs: number
 }
@@ -26,7 +28,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMode: 'read',
   annPanelDefaultOpen: true,
   autoSave: false,
-  autoSaveDelayMs: 2000
+  autoSaveDelayMs: 2000,
+  docFormats: ['md', 'html', 'txt']
 }
 
 const SETTINGS_KEY = 'awesome-notes-settings'

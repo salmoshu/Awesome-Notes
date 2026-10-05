@@ -1,110 +1,67 @@
+<div align="center">
+
+<img src="docs/screenshot-main.png" alt="Awesome-Notes" width="880">
+
 # Awesome-Notes
 
-项目富文本文档阅读器：导入任意项目目录，展开其中所有 Markdown / HTML / TXT 文档，
-提供排版精美的阅读视图、**划词批注**与**在线编辑**。每条批注都有可复制的"批注地址"，
-粘贴给 agent 即可按批注执行修改。
+项目富文本文档阅读器 —— 面向工程师的文档阅读、批注与轻量 Git 工作台
 
-技术栈：**Electron + pnpm + React（electron-vite / TypeScript）+ Go sidecar**。
+[![Release](https://img.shields.io/github/v/release/salmoshu/Awesome-Notes?style=flat-square)](https://github.com/salmoshu/Awesome-Notes/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)
 
-## 界面
+</div>
 
-| 阅读视图 | 设置 · 外观 |
-|---|---|
-| ![阅读视图](docs/shot-2-reader.png) | ![设置-外观](docs/shot-4-settings-appearance.png) |
+## 简介
 
-| 设置 · 版本（深色主题） | 深色阅读区 |
-|---|---|
-| ![设置-版本](docs/shot-6-settings-version.png) | ![深色阅读区](docs/shot-8-dark-reader.png) |
+Awesome-Notes 是一个本地优先的桌面应用，用来**阅读和管理工程项目的文档**：把任意项目目录（本地、WSL、远程机器）导入进来，即可获得纸张式阅读体验、划词批注、全文搜索、多标签浏览和内建 Git 状态面板。批注可一键复制为结构化地址，直接交给 AI Agent 执行修改——让"读文档、记想法、派任务"在一个工具里闭环。
 
-## 功能
+## 核心特性
 
-- **项目导入**：选择本地目录（含 WSL UNC 路径），自动扫描全部富文本文档，
-  跳过 `.git` / `node_modules` / `dist` 等目录；文档树支持过滤与折叠。
-- **阅读**：Markdown 以"纸张卡片 + 精细化中文排版"呈现（GFM 表格、代码高亮、
-  引用块、列表）；HTML 在沙箱 iframe 中原样渲染；TXT 等宽预览。
-- **批注**：阅读模式选中文字 → 浮动按钮 → 写下要求；正文以黄色高亮标记锚点，
-  右侧面板管理（定位 / 完成 / 重开 / 删除 / 复制地址）。
-  锚点 = 引用原文 + 前后各 40 字符上下文，文档被编辑后仍可据此重新定位。
-- **编辑**：CodeMirror 6 Markdown 编辑器，`Ctrl+S` 或工具栏保存（原子写盘）；
-  可在设置中开启自动保存（停止输入 1s / 2s / 3s 后落盘）。
-- **设置中心**：侧栏底部入口，四个分区——外观（浅色/深色主题、正文字号、
-  阅读区宽度、衬线/无衬线字体）、阅读与批注（默认模式、批注面板默认展开）、
-  编辑（自动保存）、版本（更新检查与偏好）。即改即存，重启保留。
-- **深色主题**：覆盖阅读区、CodeMirror 编辑器、批注面板与设置页。
-- **版本更新**：electron-updater + GitHub Releases；启动自动检查、右下角更新浮层、
-  忽略版本、设置页版本区（查看当前版本更新日志、检查/下载/重启更新单按钮）。
-- **批注地址**：格式如下，直接粘贴给 agent：
+- **多源项目管理** —— 本地文件夹 / WSL 发行版（自动探测）/ Docker / SSH 远程主机（自动部署 notesd 服务端），项目可折叠分组、重命名、屏蔽
+- **纸张式阅读** —— Markdown（GFM、代码高亮）、HTML（真实渲染，页内交互可用）、图片与常见文本格式；字号 / 行宽 / 衬线可调，浅色与深色主题
+- **划词批注** —— 选中文字即可批注，正文高亮回显；批注面板集中管理（待处理 / 已完成 / 编辑），支持单条复制与**全量汇总复制**（可直接粘贴给 Agent 批量处理）
+- **多文档标签** —— VSCode 语义：单击预览、双击固定，标签独立记忆滚动位置、编辑草稿与面板状态
+- **全文搜索** —— 项目内跨文档内容搜索，命中高亮、行号定位，点击跳转并自动滚动到命中处；Ctrl+F 文档内查找
+- **内建 Git** —— 分支与领先/落后、变更列表（M/A/D/R/U 徽标）、暂存 / 取消暂存 / 丢弃、查看更改（差异着色）、提交与拉推，分组可折叠
+- **文档内链接直达** —— 相对路径文档 / 图片 / JSON 等链接在应用内直接打开，外部链接走内置浏览器浮层（可返回、错误页友好）
+- **自动更新** —— 基于 GitHub Releases，推标签自动构建发布，应用内一键升级
 
-  ```
-  [Awesome-Notes 批注任务]
-  链接: awesome-notes://<项目名>/<文档相对路径>#<批注ID>
-  文档: <文档绝对路径>
-  批注库: <项目>\.awesome-notes\annotations.json
-  批注ID: ann-xxxxxxxx
-  引用: <被批注的原文>
-  要求: <要做的修改>
-  ```
+## 安装
 
-  agent 可按"文档"路径直接改文件；批注库是标准 JSON，也可被脚本批量消费。
+从 [Releases](https://github.com/salmoshu/Awesome-Notes/releases) 下载最新 `Awesome-Notes-Setup-x.y.z.exe` 安装即可（Windows 10/11 x64）。
 
-## 目录结构
+> 安装包未做代码签名，首次运行 Windows SmartScreen 可能提示，点击"更多信息 → 仍要运行"即可。
 
-```
-sidecar/            # Go 后端（仅标准库）：文档扫描 / 读写 / 批注存储，HTTP API
-  main.go           #   入口与 CORS
-  api.go            #   REST 路由
-  scan.go           #   项目注册表 + 文档树扫描（UNC 安全）
-  store.go          #   批注库（<项目>/.awesome-notes/annotations.json，原子写）
-src/
-  main/             # Electron 主进程：窗口、sidecar 拉起（随机端口+令牌）、IPC
-  preload/          # contextBridge 暴露 awesomeNotes 桥
-  shared/           # 三进程共享类型
-  renderer/         # React 界面：Sidebar / Reader / MarkdownView / AnnotationPanel / EditorPane
-scripts/            # install-native（electron 运行时镜像下载）、build-sidecar
-```
+## 快速上手
+
+1. 启动后点击左侧「＋ 添加项目」，导入一个包含文档的目录（或选择 WSL / 远程连接）
+2. 在文件树中单击文档预览阅读，双击固定为独立标签
+3. 选中正文文字即可添加批注；批注面板中可复制单条或全部批注地址
+4. 需要改文档时切换「原文」编辑（Ctrl+S 保存，可开自动保存），或在阅读模式双击正文快速进入
+5. 右上角 ⚙ 进入设置：主题、排版、支持格式（Markdown / HTML / JSON 等）与版本更新
+
+## 技术架构
+
+| 层 | 技术 | 说明 |
+| --- | --- | --- |
+| 桌面壳 | Electron 33 + electron-vite | 自定义标题栏、无边框窗口、自动更新 |
+| 前端 | React 18 + Zustand + CodeMirror 6 | 渲染层，同时支持纯 Web 预览（`pnpm dev:web`） |
+| 本地服务 | Go 标准库（notesd sidecar） | 文档扫描/读写、批注存储、全文搜索、Git 操作、WSL 探测；随应用自动启动，意外退出自动重启 |
+| 构建 | electron-builder + GitHub Actions | 推 `v*` 标签自动构建并发布 Release |
 
 ## 开发
 
 ```bash
-pnpm install        # 首次：自动补齐 electron 运行时（npmmirror）
-pnpm dev            # 构建 sidecar + 启动 electron-vite（桌面窗口，渲染层 http://localhost:7100）
-pnpm dev:web        # 仅渲染层 Web 预览（需先手动启动 sidecar，见下）
-pnpm build          # 产物到 out/
-pnpm dist           # electron-builder 打包（NSIS）
+pnpm install          # 安装依赖（自动下载 electron 运行时）
+pnpm dev              # Electron 开发模式
+pnpm dev:web          # 纯 Web 预览（需手动启动 sidecar，见 vite.web.config.ts 注释）
+pnpm typecheck        # 类型检查
+pnpm dist             # 完整打包（sidecar + 渲染层 + 版本标记校验 + NSIS 安装包）
 ```
 
-## 发布
+发布：更新 `package.json` 版本与 `release-notes.md`（只保留最新版本说明），提交并打 `v*` 标签推送，CI 自动构建发布。
 
-版本号在 `package.json`，更新日志维护在 `release-notes.md`（按 `## vX.Y.Z` 分节，
-应用内「设置 → 版本 → 查看当前版本信息」与更新浮层都按节切取展示）。
+## License
 
-```bash
-pnpm dist                                # 构建 NSIS 安装包到 release/
-pnpm exec electron-builder --publish always   # 构建并发布到 GitHub Releases（需 GH_TOKEN）
-```
-
-发布目标仓库在 `electron-builder.yml` 的 `publish` 节（owner/repo）。GitHub Release
-发布后，旧版本客户端即可通过 latest.yml 检测到更新。
-
-纯 Web 预览用的 sidecar（PowerShell / Git Bash 均可）：
-
-```bash
-sidecar/bin/notesd.exe -addr 127.0.0.1:37123 -token dev-token -data ./sidecar/data
-```
-
-Go 工具链：优先使用项目内便携版 `.toolchain/go`（不污染系统），其次 PATH 中的 go。
-sidecar 也可独立作为命令行文档服务使用（`notesd.exe -addr ... -token ...`）。
-
-## sidecar API 摘要
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/health` | 健康检查（免令牌） |
-| GET/POST | `/api/projects` | 项目列表 / 导入（body: `{path}`） |
-| DELETE | `/api/projects/{id}` | 移除项目（不动磁盘） |
-| GET | `/api/projects/{id}/tree` | 文档树 |
-| GET/PUT | `/api/projects/{id}/doc?path=` | 读 / 写文档 |
-| GET/POST/PATCH/DELETE | `/api/projects/{id}/annotations` | 批注 CRUD |
-| GET | `/api/projects/{id}/annotations-file` | 批注库绝对路径 |
-
-除 `/api/health` 外均需 `X-Notes-Token` 头。仅监听 127.0.0.1。
+[MIT](LICENSE)

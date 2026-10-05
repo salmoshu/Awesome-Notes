@@ -134,7 +134,15 @@ func (s *server) handleRescan(w http.ResponseWriter, r *http.Request) {
 	if p == nil {
 		return
 	}
-	p.DocCount = countDocs(p.Path)
+	var req struct {
+		Exts []string `json:"exts"`
+	}
+	_ = readJSON(r, &req)
+	if len(req.Exts) > 0 {
+		p.DocCount = countDocsExts(p.Path, parseExts(strings.Join(req.Exts, ",")))
+	} else {
+		p.DocCount = countDocs(p.Path)
+	}
 	writeJSON(w, 200, p)
 }
 
@@ -143,7 +151,7 @@ func (s *server) handleTree(w http.ResponseWriter, r *http.Request) {
 	if p == nil {
 		return
 	}
-	tree, err := scanTree(p.Path)
+	tree, err := scanTreeExts(p.Path, parseExts(r.URL.Query().Get("exts")))
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return

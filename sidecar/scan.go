@@ -51,6 +51,28 @@ func skipName(name string) bool {
 	return skipDirs[name] || strings.HasPrefix(name, "release-")
 }
 
+// parseExts 解析请求传入的扩展名列表（".md,.html"）；空则用默认全量。
+func parseExts(raw string) map[string]bool {
+	if raw == "" {
+		return docExts
+	}
+	m := map[string]bool{}
+	for _, e := range strings.Split(raw, ",") {
+		e = strings.ToLower(strings.TrimSpace(e))
+		if e == "" {
+			continue
+		}
+		if !strings.HasPrefix(e, ".") {
+			e = "." + e
+		}
+		m[e] = true
+	}
+	if len(m) == 0 {
+		return docExts
+	}
+	return m
+}
+
 // registry 项目注册表（projects.json）。
 type registry struct {
 	mu       sync.Mutex
@@ -166,6 +188,35 @@ func countDocs(root string) int {
 		return nil
 	})
 	return n
+}
+
+// countDocsExts 按指定扩展名集统计文档数量。
+func countDocsExts(root string, exts map[string]bool) int {
+	n := 0
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if skipName(d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if exts[strings.ToLower(filepath.Ext(d.Name()))] {
+			n++
+		}
+		return nil
+	})
+	return n
+}
+
+// scanTreeExts 按指定扩展名集构建文档树（临时替换全局 docExts，避免复制 scanTree 逻辑）。
+func scanTreeExts(root string, exts map[string]bool) (*DocNode, error) {
+	saved := docExts
+	docExts = exts
+	defer func() { docExts = saved }()
+	return scanTree(root)
 }
 
 // scanTree 构建文档树（目录在前、名字排序；上限 5000 篇防失控）。

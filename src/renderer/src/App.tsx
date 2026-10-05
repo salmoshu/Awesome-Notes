@@ -6,13 +6,13 @@ import Reader from './components/Reader'
 import AnnotationPanel from './components/AnnotationPanel'
 import Toasts from './components/Toasts'
 import UpdateCard from './components/UpdateCard'
-import SettingsModal from './components/SettingsModal'
+import SettingsView from './components/SettingsView'
 import ExternalPage from './components/ExternalPage'
 import AddProjectDialog from './components/AddProjectDialog'
 import Logo from './components/Logo'
 
 export default function App() {
-  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage } = useStore()
+  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage, settingsOpen } = useStore()
 
   useEffect(() => {
     void init()
@@ -63,14 +63,19 @@ export default function App() {
       <TitleBar />
       <div className="app-body">
         <Sidebar />
-        <main className="reader-wrap">
-          <Reader />
-        </main>
-        {annPanelOpen && activeDoc && <AnnotationPanel />}
+        {settingsOpen ? (
+          <main className="reader-wrap">
+            <SettingsView />
+          </main>
+        ) : (
+          <main className="reader-wrap">
+            <Reader />
+          </main>
+        )}
+        {!settingsOpen && annPanelOpen && activeDoc && <AnnotationPanel />}
       </div>
       <Toasts />
       <UpdateCard />
-      <SettingsModal />
       <AddProjectDialog />
       {extPageUrl && <ExternalPage url={extPageUrl} onClose={closeExtPage} />}
     </div>

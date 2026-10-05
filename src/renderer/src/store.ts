@@ -13,6 +13,18 @@ import {
   type LogLine
 } from './utils/remote'
 import { applyAppearance, loadSettings, saveSettings, type AppSettings } from './utils/settings'
+import { DOC_FORMAT_GROUPS } from '@shared/types'
+
+/** 当前设置选中的扩展名列表（拼到 tree/rescan/search 请求） */
+function extsList(): string[] {
+  const keys = useStore.getState().settings.docFormats
+  return DOC_FORMAT_GROUPS.filter((g) => keys.includes(g.key)).flatMap((g) => g.exts)
+}
+
+function extsQuery(): string {
+  const exts = extsList()
+  return exts.length > 0 ? `&exts=${encodeURIComponent(exts.join(','))}` : ''
+}
 
 export type ViewMode = 'read' | 'edit'
 
@@ -390,7 +402,7 @@ export const useStore = create<State>((set, get) => ({
       composeQuote: null
     })
     try {
-      const tree = await apiFor<DocNode>(id)('GET', `/api/projects/${id}/tree`)
+      const tree = await apiFor<DocNode>(id)('GET', `/api/projects/${id}/tree?${extsQuery().slice(1)}`)
       set({ tree, treeLoading: false })
     } catch (err) {
       set({ treeLoading: false })
@@ -403,8 +415,8 @@ export const useStore = create<State>((set, get) => ({
     if (!id) return
     set({ treeLoading: true })
     try {
-      await apiFor(id)('POST', `/api/projects/${id}/rescan`)
-      const tree = await apiFor<DocNode>(id)('GET', `/api/projects/${id}/tree`)
+      await apiFor(id)('POST', `/api/projects/${id}/rescan`, { exts: extsList() })
+      const tree = await apiFor<DocNode>(id)('GET', `/api/projects/${id}/tree?${extsQuery().slice(1)}`)
       set({ tree, treeLoading: false })
       get().toast('ok', '已重新扫描')
     } catch (err) {

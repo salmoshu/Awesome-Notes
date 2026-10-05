@@ -546,6 +546,37 @@ input, textarea { font-family: inherit; }
 [data-theme='dark'] .editor-cm .cm-editor ::selection { background: rgba(37, 99, 235, 0.35) !important; }
 
 /* ---- 设置页 ---- */
+/* ---- 设置视图（主体内布局，替代弹框） ---- */
+.st-view { flex: 1; min-width: 0; display: flex; background: var(--bg); }
+.st-view .st-side { width: 200px; }
+.st-body-wrap {
+  flex: 1; min-width: 0; overflow-y: auto; padding: 48px 40px;
+  display: flex; flex-direction: column; align-items: flex-start;
+}
+.st-body-wrap .st-card { width: min(760px, 100%); }
+.st-body-wrap > .st-close {
+  position: static; align-self: flex-end; margin-bottom: -28px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.st-body-wrap > .st-close:hover { background: var(--line); color: var(--ink); }
+.version-row { display: flex; align-items: center; gap: 16px; }
+.version-row .st-label { margin-bottom: 0; }
+.fmt-groups { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.fmt-group {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+  color: var(--ink2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 12px; cursor: pointer; user-select: none;
+}
+.fmt-group:has(input:checked) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.fmt-group input { accent-color: var(--accent); }
+.fmt-exts { font-size: 10.5px; color: var(--ink3); font-family: Consolas, monospace; }
+.git-group {
+  display: flex; align-items: center; gap: 5px; width: 100%;
+  font-size: 11px; font-weight: 700; color: var(--sidebar-ink2); letter-spacing: 0.4px;
+  padding: 8px 4px 4px; background: transparent; border: none; text-align: left; cursor: pointer;
+}
+.git-group:hover { color: var(--sidebar-ink); }
+
 .settings-mask {
   position: fixed; inset: 0; z-index: 8000; background: rgba(10, 12, 16, 0.45);
   display: flex; align-items: center; justify-content: center;

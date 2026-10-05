@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { SearchResponse } from '@shared/types'
 import { apiFor } from '../store'
+import { DOC_FORMAT_GROUPS } from '@shared/types'
 import { useStore } from '../store'
 import { isBlocked } from '../utils/local-store'
 
@@ -36,9 +37,11 @@ export default function SearchPanel({ projectId }: { projectId: string }) {
     if (!kw || loading) return
     setLoading(true)
     try {
+      const keys = useStore.getState().settings.docFormats
+      const exts = DOC_FORMAT_GROUPS.filter((g) => keys.includes(g.key)).flatMap((g) => g.exts)
       const r = await apiFor<SearchResponse>(projectId)(
         'GET',
-        `/api/projects/${projectId}/search?q=${encodeURIComponent(kw)}`
+        `/api/projects/${projectId}/search?q=${encodeURIComponent(kw)}&exts=${encodeURIComponent(exts.join(','))}`
       )
       // 屏蔽的文档不参与结果
       r.files = r.files.filter((f) => !isBlocked(projectId, f.path))

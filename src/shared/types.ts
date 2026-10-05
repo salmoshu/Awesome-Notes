@@ -76,6 +76,24 @@ export interface Annotation {
   updatedAt: string
 }
 
+/** 可配置的文档格式组（设置页勾选，决定文件树/搜索/统计扫描哪些扩展名） */
+export interface DocFormatGroup {
+  key: string
+  label: string
+  exts: string[]
+}
+
+export const DOC_FORMAT_GROUPS: DocFormatGroup[] = [
+  { key: 'md', label: 'Markdown', exts: ['.md', '.markdown', '.mdown', '.mkd'] },
+  { key: 'html', label: 'HTML', exts: ['.html', '.htm'] },
+  { key: 'txt', label: '纯文本', exts: ['.txt'] },
+  { key: 'json', label: 'JSON', exts: ['.json'] },
+  { key: 'yaml', label: 'YAML', exts: ['.yaml', '.yml'] },
+  { key: 'xml', label: 'XML', exts: ['.xml'] },
+  { key: 'csv', label: 'CSV', exts: ['.csv'] },
+  { key: 'log', label: '日志', exts: ['.log'] }
+]
+
 // ---- Git 集成（sidecar /api/projects/:id/git/*） ----
 
 export interface GitChange {

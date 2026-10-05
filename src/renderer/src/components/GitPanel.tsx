@@ -63,6 +63,8 @@ export default function GitPanel({ projectId }: { projectId: string }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [diff, setDiff] = useState<{ path: string; text: string } | null>(null)
+  const [stagedOpen, setStagedOpen] = useState(true)
+  const [unstagedOpen, setUnstagedOpen] = useState(true)
   const [diffLoading, setDiffLoading] = useState(false)
 
   const showDiff = useCallback(
@@ -169,8 +171,12 @@ export default function GitPanel({ projectId }: { projectId: string }) {
 
       {(staged.length > 0 || unstaged.length > 0) && (
         <div className="git-list">
-          {staged.length > 0 && <div className="git-group">已暂存（{staged.length}）</div>}
-          {staged.map((c) => (
+          {staged.length > 0 && (
+            <button className="git-group" onClick={() => setStagedOpen(!stagedOpen)}>
+              <span className={`dir-arrow ${stagedOpen ? 'open' : ''}`}>▸</span>已暂存（{staged.length}）
+            </button>
+          )}
+          {stagedOpen && staged.map((c) => (
             <ChangeRow
               key={'s-' + c.path}
               change={c}
@@ -182,8 +188,12 @@ export default function GitPanel({ projectId }: { projectId: string }) {
               onDiff={() => showDiff(c.path)}
             />
           ))}
-          {unstaged.length > 0 && <div className="git-group">更改（{unstaged.length}）</div>}
-          {unstaged.map((c) => (
+          {unstaged.length > 0 && (
+            <button className="git-group" onClick={() => setUnstagedOpen(!unstagedOpen)}>
+              <span className={`dir-arrow ${unstagedOpen ? 'open' : ''}`}>▸</span>更改（{unstaged.length}）
+            </button>
+          )}
+          {unstagedOpen && unstaged.map((c) => (
             <ChangeRow
               key={'u-' + c.path}
               change={c}

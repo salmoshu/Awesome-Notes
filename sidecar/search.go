@@ -83,6 +83,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "缺少搜索关键词 q")
 		return
 	}
+	exts := parseExts(r.URL.Query().Get("exts"))
 	needle := strings.ToLower(q)
 	files := []SearchFileResult{}
 	total := 0
@@ -100,7 +101,7 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(name))
-		if !docExts[ext] {
+		if !exts[ext] {
 			return nil
 		}
 		info, err := d.Info()

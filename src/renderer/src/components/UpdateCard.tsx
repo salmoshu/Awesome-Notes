@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { UpdateStatusEvent, UpdaterPrefs } from '@shared/types'
 import { compareVersions } from '../utils/version'
 import { loadUpdaterPrefs, saveUpdaterPrefs } from '../utils/updater-prefs'
+import { useStore } from '../store'
 
 /**
  * 全局更新浮层卡片（右下角），语义对齐 Nav-Tools UpdateDialog：
@@ -11,6 +12,7 @@ import { loadUpdaterPrefs, saveUpdaterPrefs } from '../utils/updater-prefs'
  * 手动检查入口在设置页（版本区）。
  */
 export default function UpdateCard() {
+  const settingsOpen = useStore((s) => s.settingsOpen)
   const bridge = window.awesomeNotes
   const [event, setEvent] = useState<UpdateStatusEvent | null>(null)
   const [prefs, setPrefs] = useState<UpdaterPrefs>(loadUpdaterPrefs)
@@ -73,7 +75,8 @@ export default function UpdateCard() {
     setEvent(null)
   }
 
-  if (!visible) return null
+  // 设置页打开时更新状态由设置·版本区呈现，避免双进度条
+  if (!visible || settingsOpen) return null
 
   return (
     <div className="update-card">
@@ -84,7 +87,6 @@ export default function UpdateCard() {
         <>
           <div className="uc-title">更新已就绪</div>
           <p className="uc-desc">v{version} 已下载完成，重启后生效。</p>
-          {event?.releaseNotes && <div className="uc-notes">{event.releaseNotes}</div>}
           <div className="uc-actions">
             <button className="btn-ghost sm" onClick={handleIgnore}>
               稍后
