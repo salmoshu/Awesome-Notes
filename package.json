@@ -1,6 +1,6 @@
 {
   "name": "awesome-notes",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Awesome-Notes —— 项目富文本文档阅读器（Markdown / HTML），支持批注与编辑，批注可生成地址交给 agent 执行修改",
   "author": "Winchell.Hu <winchell.hu@outlook.com>",
   "license": "MIT",
@@ -18,8 +18,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "start": "electron-vite preview",
-    "dist": "pnpm run build && node scripts/run-electron-builder.cjs",
-    "dist:publish": "pnpm run build && node scripts/run-electron-builder.cjs --publish",
+    "dist": "node scripts/run-electron-builder.cjs",
+    "dist:publish": "node scripts/run-electron-builder.cjs --publish",
     "gen:icon": "node scripts/gen-icon.mjs"
   },
   "dependencies": {

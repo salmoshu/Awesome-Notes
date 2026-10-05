@@ -6,6 +6,9 @@ declare global {
     awesomeNotes?: AwesomeNotesBridge
   }
 
+  /** 构建期由 vite define 注入（package.json version） */
+  const __APP_VERSION__: string
+
   /** Electron <webview> 标签（应用内外链浮层使用；纯 Web 预览回退 iframe） */
   namespace JSX {
     interface IntrinsicElements {

@@ -196,7 +196,7 @@ export default function Reader() {
           rawBase && (
             <iframe
               className="html-view"
-              sandbox="allow-scripts allow-forms allow-popups"
+              sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-modals"
               src={`${rawBase}/raw/${activeProjectId}/${activeDoc.path
                 .split('/')
                 .map(encodeURIComponent)
