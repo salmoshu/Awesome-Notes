@@ -141,9 +141,6 @@ input, textarea { font-family: inherit; }
 }
 .proj-reconnect:hover { background: var(--sb-hover); color: var(--sidebar-ink); }
 .proj-reconnect:disabled { cursor: default; }
-.proj-reconnect.spin { animation: proj-reconnect-rot 0.9s linear infinite; color: var(--accent); }
-@keyframes proj-reconnect-rot { to { transform: rotate(360deg); } }
-
 .sb-proj-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 14px 4px; border-top: 1px solid var(--sidebar-line);
@@ -683,13 +680,44 @@ input, textarea { font-family: inherit; }
 .crumb:last-child { color: var(--ink2); font-weight: 600; }
 .crumb-sep { margin: 0 5px; color: var(--ink3); opacity: 0.7; font-size: 10px; }
 
-/* ---- 标签行右侧操作（阅读|原文 + 保存，VSCode markdown 插件式） ---- */
+/* ---- 标签行右侧操作（阅读|原文 图标 + 保存，VSCode markdown 插件式） ---- */
 .tabs-actions {
-  margin-left: auto; flex: none; display: flex; align-items: center; gap: 8px;
+  margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;
   padding: 3px 8px 3px 0;
 }
-.tabs-actions .seg button { padding: 3px 12px; font-size: 12px; }
-.tabs-actions .btn-save { padding: 4px 12px; font-size: 12px; }
+.tabs-actions .icon-seg { border: none; border-radius: 6px; overflow: hidden; }
+.tabs-actions .icon-seg button {
+  padding: 3px 9px; font-size: 13px; background: transparent; color: var(--ink3);
+  border-radius: 5px; line-height: 1;
+}
+.tabs-actions .icon-seg button:hover { color: var(--ink); background: var(--bg); }
+.tabs-actions .icon-seg button.active { color: var(--accent); background: var(--accent-soft); }
+.icon-save {
+  border: none; background: transparent; color: var(--accent); font-size: 14px;
+  padding: 3px 7px; border-radius: 5px; line-height: 1;
+}
+.icon-save:hover { background: var(--accent-soft); }
+.icon-saving { font-size: 12px; color: var(--ink3); padding: 0 6px; }
+
+/* tab 未保存：✕ 变实心圆（VSCode 行为），hover 复原 ✕ */
+.tab-close { position: relative; }
+.tab-close .tc-dot,
+.tab-close .tc-x { display: none; }
+.tab-close:not(.dirty) .tc-x { display: inline; }
+.tab-close.dirty .tc-dot { display: inline; color: var(--accent); font-size: 10px; }
+.tab-close.dirty:hover .tc-dot { display: none; }
+.tab-close.dirty:hover .tc-x { display: inline; }
+
+/* 重连按钮绕中心旋转：字符居中 + 正方形按钮 */
+.proj-reconnect {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; line-height: 1;
+  border: none; background: transparent; color: var(--sidebar-ink2); font-size: 14px;
+  border-radius: 6px;
+}
+.proj-reconnect:hover { background: var(--sb-hover); color: var(--sidebar-ink); }
+.proj-reconnect.spin { animation: proj-reconnect-rot 0.9s linear infinite; color: var(--accent); }
+@keyframes proj-reconnect-rot { to { transform: rotate(360deg); } }
 
 .tb-set.on { background: var(--sb-active); color: var(--sb-active-ink); }
 

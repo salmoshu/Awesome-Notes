@@ -265,6 +265,7 @@ func (s *server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) 
 		writeError(w, 400, err.Error())
 		return
 	}
+	ensureGitIgnore(p.Path)
 	if err := s.anns.create(p.Path, &a); err != nil {
 		writeError(w, 500, err.Error())
 		return

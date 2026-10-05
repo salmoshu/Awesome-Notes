@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,6 +16,32 @@ import (
 	"strings"
 	"time"
 )
+
+// ensureGitIgnore：若项目是 git 仓库且 .gitignore 未忽略 .awesome-notes，则追加忽略项（幂等）。
+// 批注库等本地数据写入 <项目>/.awesome-notes/，不应进入版本库。
+func ensureGitIgnore(projectPath string) {
+	out, err := gitRun(projectPath, 10*time.Second, "rev-parse", "--is-inside-work-tree")
+	if err != nil || strings.TrimSpace(out) != "true" {
+		return
+	}
+	ignorePath := filepath.Join(projectPath, ".gitignore")
+	data, err := os.ReadFile(ignorePath)
+	content := string(data)
+	if err == nil && strings.Contains(content, ".awesome-notes") {
+		return
+	}
+	line := ".awesome-notes/"
+	if err == nil && len(content) > 0 && !strings.HasSuffix(content, "\n") {
+		line = "\n" + line
+	}
+	line += "\n"
+	f, err := os.OpenFile(ignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(line)
+}
 
 // GitChange 一条变更。Index/Work 为 porcelain 状态码（M/A/D/R/U/? 等，空格表示无变化）。
 type GitChange struct {

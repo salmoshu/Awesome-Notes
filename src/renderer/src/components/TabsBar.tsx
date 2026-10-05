@@ -28,16 +28,16 @@ export default function TabsBar({ children }: { children?: ReactNode }) {
           title={`${t.path}\n（双击固定标签）`}
         >
           <span className="tab-name">{t.path.split('/').pop()}</span>
-          {t.dirty && <span className="tab-dirty">●</span>}
           <button
-            className="tab-close"
+            className={`tab-close ${t.dirty ? 'dirty' : ''}`}
             onClick={(e) => {
               e.stopPropagation()
               closeTab(t.id)
             }}
-            title="关闭 (Ctrl+W)"
+            title={t.dirty ? '未保存 · 点击关闭（丢弃需确认）' : '关闭 (Ctrl+W)'}
           >
-            ✕
+            <span className="tc-dot">●</span>
+            <span className="tc-x">✕</span>
           </button>
         </div>
       ))}

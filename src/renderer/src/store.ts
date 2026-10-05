@@ -172,6 +172,15 @@ export async function rawBaseFor(projectId: string | null | undefined): Promise<
   return (await apiInfo()).base
 }
 
+/** 两个远程配置是否指向同一目标（防重复连接导致项目翻倍） */
+function sameRemoteTarget(a: RemoteConfig, b: RemoteConfig): boolean {
+  if ((a.kind ?? 'custom') !== (b.kind ?? 'custom')) return false
+  if (a.kind === 'wsl' && b.kind === 'wsl') return (a.wsl?.distro ?? '') === (b.wsl?.distro ?? '')
+  if (a.kind === 'ssh' && b.kind === 'ssh')
+    return a.ssh?.host === b.ssh?.host && a.ssh?.user === b.ssh?.user
+  return a.host === b.host && a.port === b.port
+}
+
 function mergeProjects(local: Project[], remotes: RemoteConfig[], remoteProjects: Project[]): Project[] {
   const connected = new Set(remotes.filter((r) => r.connected).map((r) => r.id))
   return [...local, ...remoteProjects.filter((p) => p.remoteId && connected.has(p.remoteId))]
@@ -231,6 +240,9 @@ export const useStore = create<State>((set, get) => ({
   async connectRemote(params, onLog) {
     try {
       const { remote, projects } = await establishRemote(params, onLog)
+      // 同一目标（发行版/主机/端口）重复连接时沿用旧配置 id，避免出现双份远程与项目
+      const dup = get().remotes.find((r) => r.id !== remote.id && sameRemoteTarget(r, remote))
+      if (dup) remote.id = dup.id
       const remotes = [...get().remotes.filter((r) => r.id !== remote.id), remote]
       saveRemotes(remotes)
       set({
@@ -365,7 +377,22 @@ export const useStore = create<State>((set, get) => ({
   async removeProject(id) {
     const p = get().projects.find((x) => x.id === id)
     if (p?.remoteId) {
-      get().toast('info', '远程项目由远端 notesd 管理，可断开其远程连接或使用屏蔽')
+      if (!window.confirm(`将从远端 notesd 移除「${p.name}」（不影响远端磁盘文件）。继续？`)) return
+      try {
+        await apiFor(id)('DELETE', `/api/projects/${id}`)
+      } catch (err) {
+        get().toast('err', `远端移除失败：${err}`)
+        return
+      }
+      projectWorkspaces.delete(id)
+      const activeId = get().activeProjectId
+      set({ projects: get().projects.filter((x) => x.id !== id) })
+      if (activeId === id) {
+        set({ activeProjectId: null, tree: null, tabs: [], activeTabId: null, activeDoc: null, annotations: [] })
+        const first = get().projects[0]
+        if (first) await get().selectProject(first.id)
+      }
+      get().toast('ok', '已从远端移除')
       return
     }
     try {

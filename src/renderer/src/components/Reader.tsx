@@ -161,20 +161,29 @@ export default function Reader() {
     <div className="reader">
       <TabsBar>
         {(isMd || activeDoc.ext === 'txt') && (
-          <div className="seg">
-            <button className={mode === 'read' ? 'active' : ''} onClick={() => setMode('read')}>
-              阅读
+          <div className="seg icon-seg">
+            <button
+              className={mode === 'read' ? 'active' : ''}
+              onClick={() => setMode('read')}
+              title="阅读（渲染视图）"
+            >
+              👁
             </button>
-            <button className={mode === 'edit' ? 'active' : ''} onClick={() => setMode('edit')}>
-              原文{dirty ? ' •' : ''}
+            <button
+              className={mode === 'edit' ? 'active' : ''}
+              onClick={() => setMode('edit')}
+              title="原文（源码编辑）"
+            >
+              {'</>'}
             </button>
           </div>
         )}
-        {mode === 'edit' && (
-          <button className="btn-save" disabled={!dirty || saving} onClick={() => void saveDoc()}>
-            {saving ? '保存中…' : dirty ? '保存 (Ctrl+S)' : '已保存'}
+        {mode === 'edit' && dirty && !saving && (
+          <button className="icon-save" onClick={() => void saveDoc()} title="保存 (Ctrl+S)">
+            ⌸
           </button>
         )}
+        {saving && <span className="icon-saving" title="保存中…">…</span>}
       </TabsBar>
 
       <div className="rt-breadcrumb" title={activeDoc.path}>
