@@ -394,6 +394,15 @@ input, textarea { font-family: inherit; }
   to { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
 }
 
+/* 阅读模式：双击块原位编辑 */
+.blk-edit textarea {
+  width: 100%; box-sizing: border-box; border: 1px dashed var(--accent);
+  border-radius: 8px; padding: 8px 10px; background: var(--paper); color: var(--ink);
+  font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px;
+  line-height: 1.7; outline: none; resize: none; overflow: hidden;
+}
+.blk-edit-hint { font-size: 11px; color: var(--ink3); margin-top: 4px; user-select: none; }
+
 /* ---- 侧栏搜索页签 ---- */
 .search-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .sp-head { display: flex; gap: 6px; padding: 2px 0 8px; }
@@ -559,17 +568,18 @@ input, textarea { font-family: inherit; }
 /* ---- 设置页 ---- */
 /* ---- 设置视图（主体内布局，替代弹框） ---- */
 .st-view { flex: 1; min-width: 0; display: flex; background: var(--bg); }
-.st-view .st-side { width: 200px; }
+.st-view .st-side { width: 272px; border-right: 1px solid var(--sidebar-line); }
+.st-side .st-close {
+  position: static; width: 100%; text-align: left; padding: 6px 10px;
+  margin: 0 0 4px; border: none; border-radius: 8px; background: transparent;
+  color: var(--sidebar-ink2); font-size: 12.5px;
+}
+.st-side .st-close:hover { background: var(--sb-hover); color: var(--sidebar-ink); }
 .st-body-wrap {
   flex: 1; min-width: 0; overflow-y: auto; padding: 48px 40px;
   display: flex; flex-direction: column; align-items: flex-start;
 }
 .st-body-wrap .st-card { width: min(760px, 100%); }
-.st-body-wrap > .st-close {
-  position: static; align-self: flex-end; margin-bottom: -28px;
-  border: 1px solid var(--line); border-radius: 8px;
-}
-.st-body-wrap > .st-close:hover { background: var(--line); color: var(--ink); }
 .version-row { display: flex; align-items: center; gap: 16px; }
 .version-row .st-label { margin-bottom: 0; }
 .fmt-groups { display: flex; flex-wrap: wrap; gap: 8px 14px; }

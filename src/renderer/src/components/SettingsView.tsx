@@ -13,7 +13,7 @@ const SECTIONS: Array<{ key: Section; icon: string; label: string }> = [
   { key: 'version', icon: '⟳', label: '版本' }
 ]
 
-/** 设置视图：主体内左右布局（左导航 + 右内容），替代原弹框 */
+/** 设置视图：占据整个内容区——左侧栏位置放设置导航（关闭按钮在标题上方），主体部分放设置内容 */
 export default function SettingsView() {
   const { settings, setSetting } = useStore()
   const [section, setSection] = useState<Section>('appearance')
@@ -115,6 +115,13 @@ export default function SettingsView() {
   return (
     <div className="st-view">
       <div className="st-side">
+        <button
+          className="st-close"
+          onClick={() => useStore.getState().closeSettings()}
+          title="关闭设置 (Esc)"
+        >
+          ✕ 关闭设置
+        </button>
         <div className="st-title">设置</div>
         {SECTIONS.map((s) => (
           <button
@@ -130,14 +137,6 @@ export default function SettingsView() {
       </div>
 
       <div className="st-body-wrap">
-        <button
-          className="st-close"
-          onClick={() => useStore.getState().closeSettings()}
-          title="关闭设置 (Esc)"
-        >
-          ✕ 关闭设置
-        </button>
-
         {section === 'appearance' && (
           <div className="st-card">
             <div className="st-card-title">外观</div>

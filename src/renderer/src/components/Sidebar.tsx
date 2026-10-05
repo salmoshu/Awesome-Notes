@@ -1,6 +1,7 @@
 import { useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useStore } from '../store'
 import type { DocNode, Project } from '@shared/types'
+import Chevron from './Chevron'
 import ContextMenu, { type MenuItem } from './ContextMenu'
 import GitPanel from './GitPanel'
 import SearchPanel from './SearchPanel'
@@ -20,22 +21,6 @@ import {
 const treeOpenState = new Map<string, boolean>()
 
 type TreeTab = 'docs' | 'search' | 'git'
-
-/** VSCode 风格折叠箭头（chevron，展开时旋转 90°） */
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg className={`dir-arrow ${open ? 'open' : ''}`} width="13" height="13" viewBox="0 0 16 16" aria-hidden>
-      <path
-        d="M6 3.5 10.5 8 6 12.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
 function extIcon(ext?: string): string {
   switch (ext) {

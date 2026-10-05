@@ -62,17 +62,17 @@ export default function App() {
     <div className="app">
       <TitleBar />
       <div className="app-body">
-        <Sidebar />
         {settingsOpen ? (
-          <main className="reader-wrap">
-            <SettingsView />
-          </main>
+          <SettingsView />
         ) : (
-          <main className="reader-wrap">
-            <Reader />
-          </main>
+          <>
+            <Sidebar />
+            <main className="reader-wrap">
+              <Reader />
+            </main>
+            {annPanelOpen && activeDoc && <AnnotationPanel />}
+          </>
         )}
-        {!settingsOpen && annPanelOpen && activeDoc && <AnnotationPanel />}
       </div>
       <Toasts />
       <UpdateCard />

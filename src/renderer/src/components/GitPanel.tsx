@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { GitChange, GitStatus } from '@shared/types'
 import { apiFor } from '../store'
 import { useStore } from '../store'
+import Chevron from './Chevron'
 
 /** 状态码 → 徽标文案与配色（模仿 VSCode） */
 const CODE_LETTER: Record<string, string> = { M: 'M', A: 'A', D: 'D', R: 'R', U: 'U', '?': 'U' }
@@ -173,7 +174,7 @@ export default function GitPanel({ projectId }: { projectId: string }) {
         <div className="git-list">
           {staged.length > 0 && (
             <button className="git-group" onClick={() => setStagedOpen(!stagedOpen)}>
-              <span className={`dir-arrow ${stagedOpen ? 'open' : ''}`}>▸</span>已暂存（{staged.length}）
+              <Chevron open={stagedOpen} />已暂存（{staged.length}）
             </button>
           )}
           {stagedOpen && staged.map((c) => (
@@ -190,7 +191,7 @@ export default function GitPanel({ projectId }: { projectId: string }) {
           ))}
           {unstaged.length > 0 && (
             <button className="git-group" onClick={() => setUnstagedOpen(!unstagedOpen)}>
-              <span className={`dir-arrow ${unstagedOpen ? 'open' : ''}`}>▸</span>更改（{unstaged.length}）
+              <Chevron open={unstagedOpen} />更改（{unstaged.length}）
             </button>
           )}
           {unstagedOpen && unstaged.map((c) => (
