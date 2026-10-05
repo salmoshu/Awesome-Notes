@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AwesomeNotesBridge, UpdateStatusEvent } from '@shared/types'
+import type { ApiInfo, AwesomeNotesBridge, UpdateStatusEvent } from '@shared/types'
 
 const bridge: AwesomeNotesBridge = {
   getApiInfo: () => ipcRenderer.invoke('api:info'),
@@ -36,6 +36,11 @@ const bridge: AwesomeNotesBridge = {
     const listener = (_e: Electron.IpcRendererEvent, kind: 'close' | 'next') => cb(kind)
     ipcRenderer.on('tab-shortcut', listener)
     return () => ipcRenderer.removeListener('tab-shortcut', listener)
+  },
+  onApiInfoChanged: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, info: ApiInfo) => cb(info)
+    ipcRenderer.on('api-info-changed', listener)
+    return () => ipcRenderer.removeListener('api-info-changed', listener)
   }
 }
 

@@ -16,6 +16,9 @@ import {
   unhideProject
 } from '../utils/local-store'
 
+/** 目录展开状态（path → open），跨重扫/重进项目保留 */
+const treeOpenState = new Map<string, boolean>()
+
 type TreeTab = 'docs' | 'search' | 'git'
 
 function extIcon(ext?: string): string {
@@ -52,8 +55,8 @@ interface TreeCtx {
 
 function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: TreeCtx }) {
   const { activeDoc, openDoc, filter } = useStore()
-  // 默认全部折叠，由用户自行展开
-  const [open, setOpen] = useState(false)
+  // 默认全部折叠，由用户自行展开；展开状态记入模块级表，重扫不丢
+  const [open, setOpen] = useState(treeOpenState.get(node.path) ?? false)
   const f = filter.trim().toLowerCase()
   if (!matchFilter(node, f)) return null
 
@@ -90,6 +93,7 @@ function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: Tre
         style={{ paddingLeft: 10 + depth * 14 }}
         onClick={() => {
           if (blocked) return
+          treeOpenState.set(node.path, !open)
           setOpen(!open)
         }}
         onContextMenu={(e) => ctx.onMenu(e, node, exactBlocked)}
@@ -345,15 +349,6 @@ export default function Sidebar() {
             </div>
             <div className="sb-proj-ops">
               <button onClick={() => void rescan()} title="重新扫描文档">⟳</button>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(active.path)
-                  toast('ok', '项目路径已复制')
-                }}
-                title="复制项目路径"
-              >
-                ⧉
-              </button>
               <button onClick={() => void onRemove(active)} title="从列表移除">✕</button>
             </div>
           </div>
@@ -391,8 +386,7 @@ export default function Sidebar() {
                 {!treeLoading && tree && (tree.children?.length ?? 0) === 0 && (
                   <div className="sb-empty">未找到 Markdown / HTML / TXT 文档</div>
                 )}
-                {!treeLoading &&
-                  tree?.children?.map((c) => (
+                {tree?.children?.map((c) => (
                     <TreeNode
                       key={c.path}
                       node={c}

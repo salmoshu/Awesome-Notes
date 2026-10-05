@@ -124,6 +124,8 @@ export interface AwesomeNotesBridge {
   openInSystemBrowser(url: string): Promise<void>
   /** 标签快捷键（主进程拦截 Ctrl+W / Ctrl+Tab 后转发） */
   onTabShortcut(cb: (kind: 'close' | 'next') => void): () => void
+  /** sidecar 自动重启后新 base/token（更新渲染层缓存） */
+  onApiInfoChanged(cb: (info: ApiInfo) => void): () => void
 }
 
 // ---- 版本更新（对齐 Nav-Tools UpdateService 语义） ----

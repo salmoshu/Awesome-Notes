@@ -23,6 +23,48 @@ function cleanLinkText(s: string): string {
   return t || s
 }
 
+/** 文档相对链接（../light_language.md）解析为项目内相对路径；越界返回 null */
+function resolveDocLink(fromPath: string, href: string): string | null {
+  let h = href.split('#')[0].split('?')[0]
+  try {
+    h = decodeURIComponent(h)
+  } catch {
+    /* 保留原值 */
+  }
+  if (!h || /^([a-z]+:)?\/\//i.test(h)) return null
+  const segs = [...fromPath.split('/').slice(0, -1), ...h.split('/')]
+  const out: string[] = []
+  for (const seg of segs) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') {
+      // 已在项目根再向上 = 越界
+      if (out.length === 0) return null
+      out.pop()
+      continue
+    }
+    out.push(seg)
+  }
+  return out.join('/')
+}
+
+const LINKABLE_EXTS = ['.md', '.markdown', '.mdown', '.mkd', '.html', '.htm', '.txt']
+
+function openRelativeLink(href: string): void {
+  const st = useStore.getState()
+  if (!st.activeDoc) return
+  const resolved = resolveDocLink(st.activeDoc.path, href)
+  if (!resolved || resolved.startsWith('..')) {
+    st.toast('info', `无法解析链接目标：${href}（超出项目范围）`)
+    return
+  }
+  const name = resolved.split('/').pop() ?? ''
+  if (!LINKABLE_EXTS.some((ext) => name.toLowerCase().endsWith(ext))) {
+    st.toast('info', '仅支持打开 Markdown / HTML / TXT 文档链接')
+    return
+  }
+  void st.openDoc(resolved)
+}
+
 /** react-markdown 传入的 href 已被 URI 编码（。→ %E3%80%82），先解码再清洗 */
 function cleanHref(raw: string): string {
   let s = raw
@@ -46,14 +88,18 @@ function MarkdownAnchor({
     <a
       href={cleaned}
       {...rest}
-      onClick={
-        external
-          ? (e) => {
-              e.preventDefault()
-              useStore.getState().openExtPage(cleaned as string)
-            }
-          : undefined
-      }
+      onClick={(e) => {
+        if (external) {
+          e.preventDefault()
+          useStore.getState().openExtPage(cleaned as string)
+          return
+        }
+        // 相对文档链接：应用内打开（打不开只提示，不再跳空白页）
+        if (typeof cleaned === 'string' && cleaned && !cleaned.startsWith('#') && !/^[a-z]+:/i.test(cleaned)) {
+          e.preventDefault()
+          openRelativeLink(cleaned)
+        }
+      }}
     >
       {label}
     </a>

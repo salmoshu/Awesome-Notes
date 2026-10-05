@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { startSidecar, stopSidecar } from './sidecar.js'
+import { startSidecar, stopSidecar, setSidecarReadyListener } from './sidecar.js'
 import { UpdateService, extractReleaseNotesSection } from './updater.js'
 import type { ApiInfo } from '@shared/types'
 
@@ -29,6 +29,12 @@ if (!app.requestSingleInstanceLock()) {
     }
     createWindow()
     watchExternalPageStatus()
+
+    // sidecar 意外退出自动重启后，把新 base/token 推给渲染层缓存
+    setSidecarReadyListener((info) => {
+      apiInfo = info
+      mainWindow?.webContents.send('api-info-changed', info)
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -99,6 +105,7 @@ function createWindow(): void {
     minWidth: 1080,
     minHeight: 680,
     frame: false,
+    roundedCorners: false,
     backgroundColor: '#f7f8fb',
     show: false,
     webPreferences: {

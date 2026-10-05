@@ -27,14 +27,22 @@ export async function apiWith<T = unknown>(
   path: string,
   body?: unknown
 ): Promise<T> {
-  const r = await fetch(base + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Notes-Token': token
-    },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  })
+  let r: Response
+  try {
+    r = await fetch(base + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Notes-Token': token
+      },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    })
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error('本地 notesd 服务不可用（连接失败）；若刚被关闭会自动重启恢复，请稍候重试')
+    }
+    throw e
+  }
   const data = (await r.json().catch(() => ({}))) as T & { error?: string }
   if (!r.ok) {
     throw new Error(data.error ?? `HTTP ${r.status}`)
@@ -50,3 +58,8 @@ export async function api<T = unknown>(
   const { base, token } = await apiInfo()
   return apiWith<T>(base, token, method, path, body)
 }
+
+// sidecar 自动重启后地址可能变化，热更新缓存
+window.awesomeNotes?.onApiInfoChanged?.((info) => {
+  cached = info
+})
