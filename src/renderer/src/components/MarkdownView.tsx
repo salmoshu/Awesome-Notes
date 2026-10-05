@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, type AnchorHTMLAttributes } from 'react'
+import { useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type ImgHTMLAttributes } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Annotation } from '@shared/types'
-import { useStore } from '../store'
+import { useStore, rawBaseFor, origProjectId } from '../store'
 
 interface Props {
   content: string
@@ -47,7 +47,37 @@ function resolveDocLink(fromPath: string, href: string): string | null {
   return out.join('/')
 }
 
-const LINKABLE_EXTS = ['.md', '.markdown', '.mdown', '.mkd', '.html', '.htm', '.txt']
+const LINKABLE_EXTS = [
+  '.md', '.markdown', '.mdown', '.mkd', '.html', '.htm', '.txt',
+  '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico',
+  '.json', '.yaml', '.yml', '.xml', '.log', '.csv'
+]
+
+/** Markdown 中的相对图片重写为 sidecar /raw 真实 URL */
+function MarkdownImg({
+  src,
+  alt,
+  ...rest
+}: React.ImgHTMLAttributes<HTMLImageElement>): JSX.Element {
+  const projectId = useStore((st) => st.activeProjectId)
+  const docPath = useStore((st) => st.activeDoc?.path)
+  const [rawBase, setRawBase] = useState('')
+  useEffect(() => {
+    void rawBaseFor(projectId).then(setRawBase)
+  }, [projectId])
+  if (typeof src !== 'string' || /^(https?:|data:|blob:)/i.test(src) || !docPath || !rawBase) {
+    return <img src={src} alt={alt} {...rest} />
+  }
+  const resolved = resolveDocLink(docPath, src)
+  if (!resolved) return <img src={src} alt={alt} {...rest} />
+  return (
+    <img
+      src={`${rawBase}/raw/${origProjectId(projectId ?? '')}/${resolved}`}
+      alt={alt}
+      {...rest}
+    />
+  )
+}
 
 function openRelativeLink(href: string): void {
   const st = useStore.getState()
@@ -59,7 +89,7 @@ function openRelativeLink(href: string): void {
   }
   const name = resolved.split('/').pop() ?? ''
   if (!LINKABLE_EXTS.some((ext) => name.toLowerCase().endsWith(ext))) {
-    st.toast('info', '仅支持打开 Markdown / HTML / TXT 文档链接')
+    st.toast('info', '暂不支持预览该类型文件（支持文档 / 图片 / 常见文本）')
     return
   }
   void st.openDoc(resolved)
@@ -183,7 +213,7 @@ export default function MarkdownView({ content, annotations, onSelectAnn }: Prop
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
-        components={{ a: MarkdownAnchor }}
+        components={{ a: MarkdownAnchor, img: MarkdownImg }}
       >
         {content}
       </ReactMarkdown>

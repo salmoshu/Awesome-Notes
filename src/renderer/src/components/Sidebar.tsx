@@ -287,16 +287,6 @@ export default function Sidebar() {
         <button className="sb-proj-toggle" onClick={() => setProjCollapsed(!projCollapsed)}>
           <span className={`dir-arrow ${!projCollapsed ? 'open' : ''}`}>▸</span>
           项目（{visibleProjects.length}）
-          <span
-            className="sb-remote-btn"
-            title="远程连接（连接远端 notesd 服务）"
-            onClick={(e) => {
-              e.stopPropagation()
-              openRemoteDialog()
-            }}
-          >
-            🌐
-          </span>
           {hiddenCount > 0 && (
             <span
               className="sb-hidden-count"
@@ -334,9 +324,12 @@ export default function Sidebar() {
                 </button>
               )
             })}
-            <button className="proj-import" onClick={() => void onImport()}>
-              ＋ 导入项目
-            </button>
+            <div className="import-menu">
+              <button className="primary" onClick={() => void onImport()}>
+                ＋ 本地文件夹
+              </button>
+              <button onClick={openRemoteDialog}>🌐 远程连接（WSL / Docker / SSH）</button>
+            </div>
           </div>
         )}
       </div>

@@ -1,32 +1,38 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Awesome-Notes 应用图标：文档 + 批注高亮 + 钢笔 -->
+  <!-- Awesome-Notes 应用图标（风格对齐 Awesome-Resume：紫渐变底 + 白卡片 + 徽章） -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5B94FF" />
-      <stop offset="0.55" stop-color="#2E6BF0" />
-      <stop offset="1" stop-color="#1C4FD8" />
+      <stop offset="0" stop-color="#8B5CF6" />
+      <stop offset="0.55" stop-color="#7C3AED" />
+      <stop offset="1" stop-color="#6D28D9" />
     </linearGradient>
   </defs>
 
   <!-- 底板 -->
-  <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#bg)" />
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)" />
 
-  <!-- 文档纸（带投影） -->
-  <rect x="140" y="98" width="236" height="324" rx="30" fill="#0F2A6E" opacity="0.35" />
-  <rect x="132" y="88" width="236" height="324" rx="30" fill="#FFFFFF" />
+  <!-- 白色卡片（投影） -->
+  <rect x="126" y="112" width="260" height="288" rx="34" fill="#5B21B6" opacity="0.35" />
+  <rect x="118" y="102" width="260" height="288" rx="34" fill="#FFFFFF" />
 
-  <!-- 文本行 -->
-  <rect x="168" y="140" width="118" height="24" rx="12" fill="#8FA3CF" />
-  <rect x="164" y="194" width="176" height="36" rx="18" fill="#FFC53D" />
-  <rect x="168" y="262" width="126" height="22" rx="11" fill="#D5DEF2" />
-  <rect x="168" y="314" width="126" height="22" rx="11" fill="#D5DEF2" />
-  <rect x="168" y="366" width="92" height="22" rx="11" fill="#D5DEF2" />
+  <!-- 左上圆点（呼应头像位） -->
+  <circle cx="168" cy="152" r="21" fill="#7C3AED" />
 
-  <!-- 钢笔（斜置，笔尖指向纸张） -->
-  <g transform="translate(362 340) rotate(45)">
-    <rect x="-21" y="-100" width="42" height="168" rx="20" fill="#1B3B8F" />
-    <path d="M -21 -80 a 20 20 0 0 1 20 -20 h 2 a 20 20 0 0 1 20 20 v 36 h -42 z" fill="#142E6E" />
-    <polygon points="-15,66 15,66 0,104" fill="#FFFFFF" />
-    <circle cx="0" cy="86" r="5" fill="#1B3B8F" />
+  <!-- 文字条 -->
+  <rect x="202" y="141" width="106" height="20" rx="10" fill="#C4B5FD" />
+  <rect x="154" y="196" width="188" height="16" rx="8" fill="#DDD6FE" />
+  <rect x="154" y="232" width="188" height="16" rx="8" fill="#DDD6FE" />
+  <!-- 批注高亮条（琥珀） -->
+  <rect x="150" y="270" width="196" height="26" rx="13" fill="#FBBF24" />
+  <rect x="154" y="322" width="150" height="16" rx="8" fill="#DDD6FE" />
+  <rect x="154" y="356" width="106" height="16" rx="8" fill="#DDD6FE" />
+
+  <!-- 右下徽章：白圆 + 紫笔尖 -->
+  <circle cx="352" cy="360" r="52" fill="#FFFFFF" />
+  <circle cx="352" cy="360" r="52" fill="none" stroke="#EDE9FE" stroke-width="4" />
+  <g transform="translate(352 360)">
+    <path d="M -14 -20 L 6 -20 A 8 8 0 0 1 14 -12 L 14 6 A 8 8 0 0 1 6 14 L -6 14 A 8 8 0 0 1 -14 6 Z" fill="#7C3AED" />
+    <polygon points="-7,8 7,8 0,22" fill="#7C3AED" />
+    <circle cx="0" cy="2" r="3" fill="#FFFFFF" />
   </g>
 </svg>

@@ -8,6 +8,8 @@ import FindBar from './FindBar'
 import { scrollToEl } from '../utils/scroll'
 import { rawBaseFor, origProjectId } from '../store'
 
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
+
 /** 在 .prose 内查找关键词首个出现处，滚动并短暂高亮 */
 function locateKeyword(keyword: string): boolean {
   const prose = document.querySelector('.prose')
@@ -96,6 +98,7 @@ export default function Reader() {
   }, [activeDoc, mode, pendingLocate])
 
   const openCount = annotations.filter((a) => a.status === 'open').length
+  const isImage = activeDoc && IMAGE_EXTS.includes(activeDoc.ext)
   const isMd = activeDoc && ['md', 'markdown', 'mdown', 'mkd'].includes(activeDoc.ext)
   const isHtml = activeDoc && ['html', 'htm'].includes(activeDoc.ext)
   const project = projects.find((p) => p.id === activeProjectId)
@@ -216,6 +219,17 @@ export default function Reader() {
               if (!annPanelOpen) toggleAnnPanel()
             }}
           />
+        ) : isImage ? (
+          <div className="img-view-wrap">
+            <img
+              className="img-view"
+              src={`${rawBase}/raw/${origProjectId(activeProjectId ?? '')}/${activeDoc.path
+                .split('/')
+                .map(encodeURIComponent)
+                .join('/')}`}
+              alt={activeDoc.path}
+            />
+          </div>
         ) : isHtml ? (
           rawBase && (
             <iframe

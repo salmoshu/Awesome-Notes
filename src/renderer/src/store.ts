@@ -19,6 +19,8 @@ export interface DocTab {
   dirty: boolean
   /** 阅读区滚动位置（切换后恢复） */
   scrollTop: number
+  /** 右侧面板页签（目录/批注）记忆，默认目录 */
+  panel: 'toc' | 'ann'
 }
 
 export interface Toast {
@@ -388,7 +390,7 @@ export const useStore = create<State>((set, get) => ({
     }
 
     if (pinned) {
-      const tab: DocTab = { id: newTabId(), path, pinned: true, mode: 'read', draft: '', dirty: false, scrollTop: 0 }
+      const tab: DocTab = { id: newTabId(), path, pinned: true, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
       set({ tabs: [...s.tabs, tab] })
       await loadTabInto(tab, set, get)
       return
@@ -398,12 +400,12 @@ export const useStore = create<State>((set, get) => ({
     const preview = s.tabs.find((t) => !t.pinned)
     if (preview) {
       if (preview.dirty && !window.confirm('预览标签有未保存的修改，切换文档将丢弃。继续？')) return
-      const tab: DocTab = { ...preview, path, mode: 'read', draft: '', dirty: false, scrollTop: 0 }
+      const tab: DocTab = { ...preview, path, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
       set({ tabs: s.tabs.map((t) => (t.id === tab.id ? tab : t)) })
       await loadTabInto(tab, set, get)
       return
     }
-    const tab: DocTab = { id: newTabId(), path, pinned: false, mode: 'read', draft: '', dirty: false, scrollTop: 0 }
+    const tab: DocTab = { id: newTabId(), path, pinned: false, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
     set({ tabs: [...s.tabs, tab] })
     await loadTabInto(tab, set, get)
   },
@@ -604,6 +606,14 @@ async function loadTabInto(
     draft: tab.draft,
     dirty: tab.dirty
   })
+  const ext = (tab.path.split('.').pop() ?? '').toLowerCase()
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) {
+    // 图片：不拉内容，直接以 /raw URL 渲染
+    const doc: DocContent = { path: tab.path, ext, content: '', size: 0, mtime: '' }
+    set({ activeDoc: doc, draft: '', dirty: false, docLoading: false })
+    set({ annotations: [] })
+    return
+  }
   try {
     const doc = await apiFor<DocContent>(projectId)(
       'GET',

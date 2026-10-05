@@ -108,12 +108,55 @@ export default function AnnotationPanel() {
   } = useStore()
   const [draft, setDraft] = useState('')
   const [locating, setLocating] = useState<string | null>(null)
-  const [tab, setTab] = useState<'toc' | 'ann'>('ann')
+  // 面板页签随文档标签记忆（默认目录）；划词批注时自动切回批注
+  const storedPanel = useStore((st) => st.tabs.find((t) => t.id === st.activeTabId)?.panel)
+  const [tab, setTab] = useState<'toc' | 'ann'>(storedPanel ?? 'toc')
 
-  // 划词批注时自动切回批注页签
   useEffect(() => {
-    if (composeQuote) setTab('ann')
+    if (storedPanel) setTab(storedPanel)
+  }, [storedPanel])
+
+  const switchTab = (next: 'toc' | 'ann'): void => {
+    setTab(next)
+    useStore.getState().patchActiveTab({ panel: next })
+  }
+
+  useEffect(() => {
+    if (composeQuote) switchTab('ann')
   }, [composeQuote])
+
+  /** 批量复制：当前文档全部批注（格式化，可直接交给 agent） */
+  const copyAllAnnotations = async (): Promise<void> => {
+    if (!project || annotations.length === 0) return
+    const annFile = `${project.path}\\.awesome-notes\\annotations.json`
+    const body = annotations
+      .map((a, i) =>
+        [
+          `## 批注 ${i + 1}（${a.status === 'open' ? '待处理' : '已完成'}）`,
+          `链接: awesome-notes://${project.name}/${a.doc}#${a.id}`,
+          `文档: ${project.path}\\${a.doc.replace(/\//g, '\\')}`,
+          `批注ID: ${a.id}`,
+          `引用: ${a.quote}`,
+          `要求: ${a.text}`
+        ].join('\n')
+      )
+      .join('\n\n')
+    const text = [
+      `[Awesome-Notes 批注任务 · ${project.name} / ${activeDoc?.path ?? ''} · 共 ${annotations.length} 条]`,
+      `批注库: ${annFile}`,
+      '',
+      body
+    ].join('\n')
+    await navigator.clipboard.writeText(text)
+    toast('ok', `已复制 ${annotations.length} 条批注（可整体发给 agent）`)
+  }
+
+  const copyAnnFileAddress = async (): Promise<void> => {
+    if (!project) return
+    const annFile = `${project.path}\\.awesome-notes\\annotations.json`
+    await navigator.clipboard.writeText(annFile)
+    toast('ok', '批注库地址已复制')
+  }
 
   const project = projects.find((p) => p.id === activeProjectId)
 
@@ -154,13 +197,23 @@ export default function AnnotationPanel() {
     <aside className="ann-panel">
       <div className="ap-head">
         <div className="ap-tabs">
-          <button className={tab === 'toc' ? 'active' : ''} onClick={() => setTab('toc')}>
+          <button className={tab === 'toc' ? 'active' : ''} onClick={() => switchTab('toc')}>
             目录
           </button>
-          <button className={tab === 'ann' ? 'active' : ''} onClick={() => setTab('ann')}>
+          <button className={tab === 'ann' ? 'active' : ''} onClick={() => switchTab('ann')}>
             批注 {annotations.length > 0 ? `(${annotations.length})` : ''}
           </button>
         </div>
+        {tab === 'ann' && annotations.length > 0 && (
+          <div className="ap-batch-ops">
+            <button onClick={() => void copyAllAnnotations()} title="复制当前文档全部批注（整体发给 agent）">
+              ⧉ 复制全部批注
+            </button>
+            <button onClick={() => void copyAnnFileAddress()} title="复制批注库文件地址">
+              ▤ 批注库地址
+            </button>
+          </div>
+        )}
         {tab === 'ann' && (
           <span className="ap-count">
             {open.length} 待处理 · {done.length} 已完成

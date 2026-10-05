@@ -10,6 +10,32 @@ export default function RemoteDialog() {
   const [token, setToken] = useState('')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [kind, setKind] = useState<'wsl' | 'docker' | 'ssh' | 'custom'>('wsl')
+
+  const KIND_INFO: Record<string, { label: string; tip: string; hostHint: string }> = {
+    wsl: {
+      label: 'WSL',
+      tip: '在 WSL 内运行 notesd（sidecar/bin/notesd.exe 对应 Linux 版），WSL2 端口默认转发到 localhost',
+      hostHint: 'localhost'
+    },
+    docker: {
+      label: 'Docker',
+      tip: '容器内运行 notesd 并映射端口（docker run -p <端口>:<端口>），连接映射后的 localhost 端口',
+      hostHint: 'localhost'
+    },
+    ssh: {
+      label: 'SSH',
+      tip: '远端机器运行 notesd，需端口网络可达；不可达时可先建隧道：ssh -L 37123:127.0.0.1:37123 <用户>@<主机>',
+      hostHint: ''
+    },
+    custom: { label: '自定义', tip: '任意可达的 notesd 地址', hostHint: '' }
+  }
+  const info = KIND_INFO[kind]
+
+  const pickKind = (k: typeof kind): void => {
+    setKind(k)
+    if (KIND_INFO[k].hostHint) setHost(KIND_INFO[k].hostHint)
+  }
 
   if (!remoteDialogOpen) return null
 
@@ -35,6 +61,20 @@ export default function RemoteDialog() {
         <div className="rd-title">远程连接</div>
         <div className="rd-sub">连接远端机器上运行的 notesd 服务，阅读远端项目文档</div>
 
+        <div className="rd-kinds">
+          {(['wsl', 'docker', 'ssh', 'custom'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={`rd-kind ${kind === k ? 'active' : ''}`}
+              onClick={() => pickKind(k)}
+            >
+              {KIND_INFO[k].label}
+            </button>
+          ))}
+        </div>
+        <div className="rd-tip">{info.tip}</div>
+
         <form className="rd-form" onSubmit={(e) => void onSubmit(e)}>
           <label className="rd-row">
             <span>名称</span>
@@ -42,7 +82,7 @@ export default function RemoteDialog() {
           </label>
           <label className="rd-row">
             <span>主机</span>
-            <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="例如：127.0.0.1" spellCheck={false} autoFocus />
+            <input value={host} onChange={(e) => setHost(e.target.value)} placeholder={info.hostHint || '例如：127.0.0.1'} spellCheck={false} autoFocus />
           </label>
           <label className="rd-row">
             <span>端口</span>
