@@ -139,6 +139,8 @@ export default function Sidebar() {
     openTab,
     openAddProject,
     disconnectRemote,
+    reconnectRemote,
+    remotes,
     rescan,
     tree,
     treeLoading,
@@ -152,7 +154,21 @@ export default function Sidebar() {
   const [tab, setTab] = useState<TreeTab>('docs')
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
   const [storeRev, setStoreRev] = useState(0) // 别名/屏蔽变更后强制重渲染
+  const [connecting, setConnecting] = useState<Set<string>>(new Set()) // 重连中的远程 id
   const bump = () => setStoreRev((v) => v + 1)
+
+  const onReconnect = async (remoteId: string) => {
+    setConnecting((s) => new Set(s).add(remoteId))
+    try {
+      await reconnectRemote(remoteId)
+    } finally {
+      setConnecting((s) => {
+        const next = new Set(s)
+        next.delete(remoteId)
+        return next
+      })
+    }
+  }
 
   const active = useMemo(
     () => projects.find((p) => p.id === activeProjectId),
@@ -285,6 +301,8 @@ export default function Sidebar() {
 
   const visibleProjects = projects.filter((p) => showHidden || !hiddenIds.includes(p.id))
   const hiddenCount = projects.filter((p) => hiddenIds.includes(p.id)).length
+  // 未连接的远程连接：重启后不自动重连，占位显示 + ⟳ 手动重连（zcode 式）
+  const disconnectedRemotes = remotes.filter((r) => !r.connected)
 
   return (
     <aside className="sidebar">
@@ -329,6 +347,23 @@ export default function Sidebar() {
                 </button>
               )
             })}
+            {disconnectedRemotes.map((r) => (
+              <div
+                key={r.id}
+                className="proj-item proj-remote-off"
+                title={`${r.name}\n${r.host}:${r.port}\n未连接${r.lastError ? `\n上次失败：${r.lastError}` : ''}`}
+              >
+                <span className="proj-name">🌐 {r.name}</span>
+                <button
+                  className={`proj-reconnect ${connecting.has(r.id) ? 'spin' : ''}`}
+                  title="重新连接"
+                  disabled={connecting.has(r.id)}
+                  onClick={() => void onReconnect(r.id)}
+                >
+                  ⟳
+                </button>
+              </div>
+            ))}
             <button className="proj-import" onClick={openAddProject}>
               ＋ 添加项目
             </button>

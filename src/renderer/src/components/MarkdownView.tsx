@@ -16,6 +16,31 @@ interface Props {
 const CJK_IN_URL = /[\u3000-\u303f\u3040-\u30ff\u4e00-\u9fff\uff00-\uffef]/
 const TRAILING_PUNCT = /[.,;:!?)\]}>～]+$/g
 
+/** 中文排版：源码中的折行只是编排（软换行），阅读渲染不应变成空格 ——
+ *  CJK 字符相邻的 \n 直接拼接；英文之间的换行仍保留为空格 */
+const CJK_EDGE = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/
+
+interface MdNode {
+  type?: string
+  value?: string
+  children?: MdNode[]
+}
+
+function remarkCjkSoftBreaks() {
+  return (tree: MdNode) => {
+    const walk = (node: MdNode): void => {
+      if (node.type === 'text' && typeof node.value === 'string' && node.value.includes('\n')) {
+        node.value = node.value.replace(/(\S)\n/g, (m, prev: string, offset: number, whole: string) => {
+          const next = whole.charAt(offset + m.length)
+          return CJK_EDGE.test(prev) || CJK_EDGE.test(next) ? prev : `${prev} `
+        })
+      }
+      node.children?.forEach(walk)
+    }
+    walk(tree)
+  }
+}
+
 function cleanLinkText(s: string): string {
   const m = s.match(CJK_IN_URL)
   let t = m && m.index !== undefined ? s.slice(0, m.index) : s
@@ -211,7 +236,7 @@ export default function MarkdownView({ content, annotations, onSelectAnn }: Prop
   const rendered = useMemo(
     () => (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkCjkSoftBreaks]}
         rehypePlugins={[rehypeHighlight]}
         components={{ a: MarkdownAnchor, img: MarkdownImg }}
       >

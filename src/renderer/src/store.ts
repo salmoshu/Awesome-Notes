@@ -307,17 +307,8 @@ export const useStore = create<State>((set, get) => ({
     try {
       const r = await api<{ projects: Project[] }>('GET', '/api/projects')
       const localProjects = r.projects ?? []
-      set({ localProjects })
-      // 已存远程自动重连（重启后需要重新握手）
-      const remotes = get().remotes
-      if (remotes.length > 0) {
-        void Promise.allSettled(remotes.map((rm) => get().reconnectRemote(rm.id))).then(() => {
-          set({ ready: true })
-        })
-        set({ ready: true, projects: mergeProjects(localProjects, get().remotes, []) })
-        return
-      }
-      set({ projects: localProjects, ready: true })
+      // 远程连接不自动重连：重启后保持未连接占位，由用户点击 ⟳ 手动重连（zcode 式）
+      set({ localProjects, projects: mergeProjects(localProjects, get().remotes, []), ready: true })
     } catch (err) {
       set({ fatalError: String(err), ready: true })
       return

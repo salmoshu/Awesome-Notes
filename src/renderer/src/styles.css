@@ -132,6 +132,17 @@ input, textarea { font-family: inherit; }
 .proj-item.active { background: var(--sb-active); color: var(--sb-active-ink); }
 .proj-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proj-count { font-size: 11px; color: var(--sidebar-ink2); flex: none; margin-left: 8px; }
+/* 未连接的远程连接占位（重启后不自动重连，点击 ⟳ 手动重连） */
+.proj-remote-off { cursor: default; opacity: 0.75; }
+.proj-remote-off:hover { background: transparent; }
+.proj-reconnect {
+  border: none; background: transparent; color: var(--sidebar-ink2);
+  font-size: 14px; padding: 2px 6px; border-radius: 6px; flex: none; margin-left: 8px;
+}
+.proj-reconnect:hover { background: var(--sb-hover); color: var(--sidebar-ink); }
+.proj-reconnect:disabled { cursor: default; }
+.proj-reconnect.spin { animation: proj-reconnect-rot 0.9s linear infinite; color: var(--accent); }
+@keyframes proj-reconnect-rot { to { transform: rotate(360deg); } }
 
 .sb-proj-head {
   display: flex; align-items: center; justify-content: space-between;

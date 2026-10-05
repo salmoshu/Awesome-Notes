@@ -1,6 +1,6 @@
 // 远程连接：zcode 式接入 —— WSL/SSH 由本地 sidecar 自动部署并启动远端 notesd
 // （NDJSON 流式回报进度），Docker/自定义 直连已有 notesd 地址。
-// 连接配置持久化在 localStorage；应用重启后 connected=false，需重新连接（init 时自动尝试）。
+// 连接配置持久化在 localStorage；应用重启后 connected=false，在侧栏显示未连接占位，由用户点击 ⟳ 手动重连。
 import type { Project, RemoteConfig, SshConfig } from '@shared/types'
 import { api, apiInfo, apiWith } from '../api'
 
