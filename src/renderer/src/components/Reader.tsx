@@ -154,13 +154,30 @@ export default function Reader() {
     )
   }
 
+  // 面包屑分段（VSCode 风格：目录 › 目录 › 文件）
+  const crumbs = activeDoc.path.split('/')
+
   return (
     <div className="reader">
-      <div className="reader-toolbar">
-        <div className="rt-path" title={activeDoc.path}>
-          {activeDoc.path}
-        </div>
-        <div className="rt-ops">
+      <TabsBar />
+
+      <div className="rt-breadcrumb" title={activeDoc.path}>
+        {crumbs.map((c, i) => (
+          <span key={i} className="crumb">
+            {c}
+            {i < crumbs.length - 1 && <span className="crumb-sep">›</span>}
+          </span>
+        ))}
+      </div>
+
+      {findOpen && <FindBar onClose={() => setFindOpen(false)} />}
+
+      <div
+        className="reader-body"
+        ref={proseWrapRef}
+        onMouseUp={onMouseUp}
+      >
+        <div className="reader-float-ops">
           {(isMd || activeDoc.ext === 'txt') && (
             <div className="seg">
               <button className={mode === 'read' ? 'active' : ''} onClick={() => setMode('read')}>
@@ -176,25 +193,7 @@ export default function Reader() {
               {saving ? '保存中…' : dirty ? '保存 (Ctrl+S)' : '已保存'}
             </button>
           )}
-          <button
-            className={`rt-btn icon ${annPanelOpen ? 'active' : ''}`}
-            onClick={toggleAnnPanel}
-            title={`侧边栏（目录 / 批注${openCount > 0 ? `，${openCount} 条待处理` : ''}）`}
-          >
-            ▤
-          </button>
         </div>
-      </div>
-
-      <TabsBar />
-
-      {findOpen && <FindBar onClose={() => setFindOpen(false)} />}
-
-      <div
-        className="reader-body"
-        ref={proseWrapRef}
-        onMouseUp={onMouseUp}
-      >
         {mode === 'edit' ? (
           <EditorPane />
         ) : isMd ? (

@@ -5,6 +5,9 @@ import Logo from './Logo'
 export default function TitleBar() {
   const b = window.awesomeNotes
   const openSettings = useStore((s) => s.openSettings)
+  const annPanelOpen = useStore((s) => s.annPanelOpen)
+  const activeDoc = useStore((s) => s.activeDoc)
+  const toggleAnnPanel = useStore((s) => s.toggleAnnPanel)
   const [version, setVersion] = useState('')
 
   // 标题区版本号（Electron 环境从主进程取；纯 Web 预览不显示）
@@ -28,6 +31,13 @@ export default function TitleBar() {
         {version && <span className="tb-version">{`v${version}`}</span>}
       </div>
       <div className="tb-btns">
+        <button
+          className={`tb-set ${annPanelOpen && activeDoc ? 'on' : ''}`}
+          onClick={toggleAnnPanel}
+          title={`右侧边栏（目录 / 批注）${activeDoc ? '' : '：打开文档后可用'}`}
+        >
+          ▤
+        </button>
         <button className="tb-set" onClick={openSettings} title="设置">
           ⚙
         </button>

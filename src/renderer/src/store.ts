@@ -52,6 +52,9 @@ export interface Toast {
   text: string
 }
 
+/** 项目工作区缓存：切换项目时保存/还原打开的文档标签状态（会话内有效） */
+const projectWorkspaces = new Map<string, { tabs: DocTab[]; activeTabId: string | null }>()
+
 let tabSeq = 1
 let toastSeq = 1
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -367,6 +370,7 @@ export const useStore = create<State>((set, get) => ({
     }
     try {
       await api('DELETE', `/api/projects/${id}`)
+      projectWorkspaces.delete(id)
       // 本地过滤，省去整表重拉
       const localProjects = get().localProjects.filter((x) => x.id !== id)
       const { activeProjectId } = get()
@@ -382,6 +386,18 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async selectProject(id) {
+    const s = get()
+    if (id === s.activeProjectId) return
+    // 保存当前项目的工作区（打开的标签 + 活动标签状态）
+    if (s.activeProjectId && s.tabs.length > 0) {
+      const curScroll = document.querySelector('.reader-body')?.scrollTop ?? 0
+      const tabs = s.tabs.map((t) =>
+        t.id === s.activeTabId
+          ? { ...t, mode: s.mode, draft: s.draft, dirty: s.dirty, scrollTop: curScroll }
+          : t
+      )
+      projectWorkspaces.set(s.activeProjectId, { tabs, activeTabId: s.activeTabId })
+    }
     set({
       activeProjectId: id,
       tree: null,
@@ -398,6 +414,13 @@ export const useStore = create<State>((set, get) => ({
     } catch (err) {
       set({ treeLoading: false })
       get().toast('err', `文档树加载失败：${err}`)
+    }
+    // 还原该项目上次的工作区
+    const ws = projectWorkspaces.get(id)
+    if (ws && ws.tabs.length > 0) {
+      set({ tabs: ws.tabs, activeTabId: ws.activeTabId })
+      const target = ws.tabs.find((t) => t.id === ws.activeTabId) ?? ws.tabs[0]
+      if (target) await loadTabInto(target, set, get)
     }
   },
 

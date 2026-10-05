@@ -577,7 +577,7 @@ input, textarea { font-family: inherit; }
 .st-side .st-close:hover { background: var(--sb-hover); color: var(--sidebar-ink); }
 .st-body-wrap {
   flex: 1; min-width: 0; overflow-y: auto; padding: 48px 40px;
-  display: flex; flex-direction: column; align-items: flex-start;
+  display: flex; flex-direction: column; align-items: center;
 }
 .st-body-wrap .st-card { width: min(760px, 100%); }
 .version-row { display: flex; align-items: center; gap: 16px; }
@@ -669,6 +669,30 @@ input, textarea { font-family: inherit; }
   font-family: Consolas, monospace; font-size: 12px;
   background: var(--accent-soft); padding: 1px 5px; border-radius: 4px;
 }
+
+/* ---- 路径面包屑（tab 下方，VSCode 式） ---- */
+.rt-breadcrumb {
+  flex: none; display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+  padding: 5px 16px; background: var(--paper); border-bottom: 1px solid var(--line);
+  font-size: 12px; color: var(--ink3); font-family: Consolas, monospace;
+  overflow: hidden; white-space: nowrap; user-select: text;
+}
+.crumb { display: inline-flex; align-items: center; gap: 2px; }
+.crumb:last-child { color: var(--ink2); font-weight: 600; }
+.crumb-sep { margin: 0 5px; color: var(--ink3); opacity: 0.7; font-size: 10px; }
+
+/* ---- 正文右上角浮动操作（阅读|原文 + 保存） ---- */
+.reader-float-ops {
+  position: absolute; top: 10px; right: 18px; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+}
+.reader-float-ops .seg {
+  background: var(--paper); box-shadow: var(--shadow);
+  border-radius: 8px; overflow: hidden;
+}
+.reader-float-ops .btn-save { box-shadow: var(--shadow); }
+
+.tb-set.on { background: var(--sb-active); color: var(--sb-active-ink); }
 
 /* ---- 文档标签栏（VSCode 式） ---- */
 .tabs-bar {

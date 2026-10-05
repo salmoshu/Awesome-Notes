@@ -118,9 +118,9 @@ export default function SettingsView() {
         <button
           className="st-close"
           onClick={() => useStore.getState().closeSettings()}
-          title="关闭设置 (Esc)"
+          title="返回 (Esc)"
         >
-          ✕ 关闭设置
+          ← 返回
         </button>
         <div className="st-title">设置</div>
         {SECTIONS.map((s) => (
