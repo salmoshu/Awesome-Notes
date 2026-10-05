@@ -159,7 +159,23 @@ export default function Reader() {
 
   return (
     <div className="reader">
-      <TabsBar />
+      <TabsBar>
+        {(isMd || activeDoc.ext === 'txt') && (
+          <div className="seg">
+            <button className={mode === 'read' ? 'active' : ''} onClick={() => setMode('read')}>
+              阅读
+            </button>
+            <button className={mode === 'edit' ? 'active' : ''} onClick={() => setMode('edit')}>
+              原文{dirty ? ' •' : ''}
+            </button>
+          </div>
+        )}
+        {mode === 'edit' && (
+          <button className="btn-save" disabled={!dirty || saving} onClick={() => void saveDoc()}>
+            {saving ? '保存中…' : dirty ? '保存 (Ctrl+S)' : '已保存'}
+          </button>
+        )}
+      </TabsBar>
 
       <div className="rt-breadcrumb" title={activeDoc.path}>
         {crumbs.map((c, i) => (
@@ -177,23 +193,6 @@ export default function Reader() {
         ref={proseWrapRef}
         onMouseUp={onMouseUp}
       >
-        <div className="reader-float-ops">
-          {(isMd || activeDoc.ext === 'txt') && (
-            <div className="seg">
-              <button className={mode === 'read' ? 'active' : ''} onClick={() => setMode('read')}>
-                阅读
-              </button>
-              <button className={mode === 'edit' ? 'active' : ''} onClick={() => setMode('edit')}>
-                原文{dirty ? ' •' : ''}
-              </button>
-            </div>
-          )}
-          {mode === 'edit' && (
-            <button className="btn-save" disabled={!dirty || saving} onClick={() => void saveDoc()}>
-              {saving ? '保存中…' : dirty ? '保存 (Ctrl+S)' : '已保存'}
-            </button>
-          )}
-        </div>
         {mode === 'edit' ? (
           <EditorPane />
         ) : isMd ? (

@@ -1,7 +1,9 @@
+import { type ReactNode } from 'react'
 import { useStore } from '../store'
 
-/** 文档标签栏（VSCode 语义：斜体 = 预览标签，随单击复用；双击固定） */
-export default function TabsBar() {
+/** 文档标签栏（VSCode 语义：斜体 = 预览标签，随单击复用；双击固定）；
+ *  children 渲染为行右端操作区（阅读|原文 / 保存等，参考 VSCode markdown 插件） */
+export default function TabsBar({ children }: { children?: ReactNode }) {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)
   const { activateTab, closeTab, pinTab } = useStore.getState()
@@ -39,6 +41,7 @@ export default function TabsBar() {
           </button>
         </div>
       ))}
+      {children && <div className="tabs-actions">{children}</div>}
     </div>
   )
 }

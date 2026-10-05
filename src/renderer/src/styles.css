@@ -71,12 +71,12 @@ input, textarea { font-family: inherit; }
 }
 .tb-btns { display: flex; }
 .tb-btns button {
-  width: 44px; border: none; background: transparent; color: var(--sidebar-ink2);
-  font-size: 13px; transition: background 0.12s;
+  width: 38px; border: none; background: transparent; color: var(--sidebar-ink2);
+  font-size: 11px; transition: background 0.12s;
 }
 .tb-btns button:hover { background: var(--sb-hover); color: var(--sb-hover-ink); }
 .tb-btns .tb-close:hover { background: var(--danger); color: #fff; }
-.tb-btns .tb-set { font-size: 14px; border-right: 1px solid var(--sidebar-line); }
+.tb-btns .tb-set { font-size: 13px; border-right: 1px solid var(--sidebar-line); }
 
 /* ---- 布局 ---- */
 .app { height: 100vh; display: flex; flex-direction: column; }
@@ -201,6 +201,8 @@ input, textarea { font-family: inherit; }
 }
 .sb-tabs button:hover { background: var(--sb-hover); color: var(--sidebar-ink); }
 .sb-tabs button.active { background: var(--sb-active); color: var(--sb-active-ink); }
+.sb-tabs button.icon-tab { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; }
+.sb-tabs button.icon-tab.active { background: transparent; color: var(--accent); }
 
 /* ---- 右键菜单 ---- */
 .ctx-menu {
@@ -681,16 +683,13 @@ input, textarea { font-family: inherit; }
 .crumb:last-child { color: var(--ink2); font-weight: 600; }
 .crumb-sep { margin: 0 5px; color: var(--ink3); opacity: 0.7; font-size: 10px; }
 
-/* ---- 正文右上角浮动操作（阅读|原文 + 保存） ---- */
-.reader-float-ops {
-  position: absolute; top: 10px; right: 18px; z-index: 20;
-  display: flex; align-items: center; gap: 10px;
+/* ---- 标签行右侧操作（阅读|原文 + 保存，VSCode markdown 插件式） ---- */
+.tabs-actions {
+  margin-left: auto; flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 3px 8px 3px 0;
 }
-.reader-float-ops .seg {
-  background: var(--paper); box-shadow: var(--shadow);
-  border-radius: 8px; overflow: hidden;
-}
-.reader-float-ops .btn-save { box-shadow: var(--shadow); }
+.tabs-actions .seg button { padding: 3px 12px; font-size: 12px; }
+.tabs-actions .btn-save { padding: 4px 12px; font-size: 12px; }
 
 .tb-set.on { background: var(--sb-active); color: var(--sb-active-ink); }
 
