@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
-import { apiInfo } from '../api'
 import MarkdownView, { selectionAnchor } from './MarkdownView'
 import EditorPane from './EditorPane'
 import Logo from './Logo'
+import TabsBar from './TabsBar'
+import FindBar from './FindBar'
 import { scrollToEl } from '../utils/scroll'
+import { rawBaseFor, origProjectId } from '../store'
 
 /** 在 .prose 内查找关键词首个出现处，滚动并短暂高亮 */
 function locateKeyword(keyword: string): boolean {
@@ -53,16 +55,30 @@ export default function Reader() {
     setComposeQuote,
     projects,
     activeProjectId,
+    activeTabId,
     toast
   } = useStore()
 
   const proseWrapRef = useRef<HTMLDivElement>(null)
   const [pop, setPop] = useState<{ x: number; y: number; below?: boolean } | null>(null)
   const [rawBase, setRawBase] = useState('')
+  const [findOpen, setFindOpen] = useState(false)
 
-  // HTML 文档经 sidecar /raw 以真实 URL 加载（相对路径资源与页内脚本可用）
+  // HTML 文档经 sidecar /raw 以真实 URL 加载（远程项目走远端 base）
   useEffect(() => {
-    void apiInfo().then((i) => setRawBase(i.base))
+    void rawBaseFor(activeProjectId).then(setRawBase)
+  }, [activeProjectId])
+
+  // Ctrl+F 打开文档内查找
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        setFindOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // 搜索结果跳转：文档渲染完成后滚动到关键词命中处
@@ -168,18 +184,26 @@ export default function Reader() {
               {saving ? '保存中…' : dirty ? '保存 (Ctrl+S)' : '已保存'}
             </button>
           )}
-          <button className="rt-btn" onClick={() => void copyDocAddress()} title="复制文档地址（发给 agent）">
-            ⧉ 地址
+          <button
+            className="rt-btn icon"
+            onClick={() => void copyDocAddress()}
+            title="复制文档地址（发给 agent）"
+          >
+            ⧉
           </button>
           <button
-            className={`rt-btn ${annPanelOpen ? 'active' : ''}`}
+            className={`rt-btn icon ${annPanelOpen ? 'active' : ''}`}
             onClick={toggleAnnPanel}
-            title="批注面板"
+            title={`侧边栏（目录 / 批注${openCount > 0 ? `，${openCount} 条待处理` : ''}）`}
           >
-            💬 批注{openCount > 0 ? ` (${openCount})` : ''}
+            ▤
           </button>
         </div>
       </div>
+
+      <TabsBar />
+
+      {findOpen && <FindBar onClose={() => setFindOpen(false)} />}
 
       <div className="reader-body" ref={proseWrapRef} onMouseUp={onMouseUp}>
         {mode === 'edit' ? (
@@ -197,7 +221,7 @@ export default function Reader() {
             <iframe
               className="html-view"
               sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-modals"
-              src={`${rawBase}/raw/${activeProjectId}/${activeDoc.path
+              src={`${rawBase}/raw/${origProjectId(activeProjectId ?? '')}/${activeDoc.path
                 .split('/')
                 .map(encodeURIComponent)
                 .join('/')}`}

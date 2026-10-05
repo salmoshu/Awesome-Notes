@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { SearchResponse } from '@shared/types'
-import { api } from '../api'
+import { apiFor } from '../store'
 import { useStore } from '../store'
 import { isBlocked } from '../utils/local-store'
 
@@ -36,7 +36,7 @@ export default function SearchPanel({ projectId }: { projectId: string }) {
     if (!kw || loading) return
     setLoading(true)
     try {
-      const r = await api<SearchResponse>(
+      const r = await apiFor<SearchResponse>(projectId)(
         'GET',
         `/api/projects/${projectId}/search?q=${encodeURIComponent(kw)}`
       )

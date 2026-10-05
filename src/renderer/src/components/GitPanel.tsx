@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { GitChange, GitStatus } from '@shared/types'
-import { api } from '../api'
+import { apiFor } from '../store'
 import { useStore } from '../store'
 
 /** 状态码 → 徽标文案与配色（模仿 VSCode） */
@@ -63,7 +63,7 @@ export default function GitPanel({ projectId }: { projectId: string }) {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      setStatus(await api<GitStatus>('GET', `/api/projects/${projectId}/git/status`))
+      setStatus(await apiFor<GitStatus>(projectId)('GET', `/api/projects/${projectId}/git/status`))
     } catch (err) {
       toast('err', `git 状态获取失败：${err}`)
     } finally {
@@ -93,22 +93,22 @@ export default function GitPanel({ projectId }: { projectId: string }) {
   }
 
   const stage = (c: GitChange) =>
-    run('暂存', () => api('POST', `/api/projects/${projectId}/git/add`, { paths: [c.path] }))
+    run('暂存', () => apiFor(projectId)('POST', `/api/projects/${projectId}/git/add`, { paths: [c.path] }))
   const unstage = (c: GitChange) =>
-    run('取消暂存', () => api('POST', `/api/projects/${projectId}/git/reset`, { paths: [c.path] }))
+    run('取消暂存', () => apiFor(projectId)('POST', `/api/projects/${projectId}/git/reset`, { paths: [c.path] }))
   const discard = (c: GitChange) => {
     if (!window.confirm(`丢弃「${c.path}」的改动？（未提交内容将无法恢复）`)) return
-    void run('丢弃', () => api('POST', `/api/projects/${projectId}/git/discard`, { paths: [c.path] }))
+    void run('丢弃', () => apiFor(projectId)('POST', `/api/projects/${projectId}/git/discard`, { paths: [c.path] }))
   }
   const commit = async () => {
     const ok = await run('提交', () =>
-      api('POST', `/api/projects/${projectId}/git/commit`, { message })
+      apiFor(projectId)('POST', `/api/projects/${projectId}/git/commit`, { message })
     )
     if (ok) setMessage('')
   }
   const sync = (op: 'pull' | 'push') =>
     run(op === 'pull' ? '拉取' : '推送', () =>
-      api('POST', `/api/projects/${projectId}/git/sync`, { op })
+      apiFor(projectId)('POST', `/api/projects/${projectId}/git/sync`, { op })
     )
 
   if (status && !status.repo) {

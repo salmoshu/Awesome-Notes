@@ -8,6 +8,7 @@ import Toasts from './components/Toasts'
 import UpdateCard from './components/UpdateCard'
 import SettingsModal from './components/SettingsModal'
 import ExternalPage from './components/ExternalPage'
+import RemoteDialog from './components/RemoteDialog'
 import Logo from './components/Logo'
 
 export default function App() {
@@ -19,6 +20,20 @@ export default function App() {
 
   // 主进程拦截到的外链（导航 / window.open）转应用内浮层；浮层未挂载也能收到
   useEffect(() => window.awesomeNotes?.onOpenExternalPage((url) => useStore.getState().openExtPage(url)), [])
+
+  // 标签快捷键（主进程 before-input-event 拦截后转发）：Ctrl+W 关闭、Ctrl+Tab 切换
+  useEffect(
+    () =>
+      window.awesomeNotes?.onTabShortcut((kind) => {
+        const s = useStore.getState()
+        if (kind === 'close' && s.activeTabId) s.closeTab(s.activeTabId)
+        else if (kind === 'next' && s.tabs.length > 1) {
+          const idx = s.tabs.findIndex((t) => t.id === s.activeTabId)
+          void s.activateTab(s.tabs[(idx + 1) % s.tabs.length].id)
+        }
+      }),
+    []
+  )
 
   if (!ready) {
     return (
@@ -56,6 +71,8 @@ export default function App() {
       <Toasts />
       <UpdateCard />
       <SettingsModal />
+      <RemoteDialog />
+      <RemoteDialog />
       {extPageUrl && <ExternalPage url={extPageUrl} onClose={closeExtPage} />}
     </div>
   )

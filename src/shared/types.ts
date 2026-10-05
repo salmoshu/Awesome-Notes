@@ -11,6 +11,19 @@ export interface Project {
   path: string
   addedAt: string
   docCount: number
+  /** 远程项目：所属远程连接 id（本地项目无此字段） */
+  remoteId?: string
+}
+
+/** 远程连接配置（连接到远端机器上运行的 notesd 服务） */
+export interface RemoteConfig {
+  id: string
+  name: string
+  host: string
+  port: number
+  token: string
+  connected: boolean
+  lastError?: string
 }
 
 export interface DocNode {
@@ -109,6 +122,8 @@ export interface AwesomeNotesBridge {
   onExtPageStatus(cb: (e: { url: string; code: number }) => void): () => void
   /** 用系统浏览器打开（浮层右上角 ↗） */
   openInSystemBrowser(url: string): Promise<void>
+  /** 标签快捷键（主进程拦截 Ctrl+W / Ctrl+Tab 后转发） */
+  onTabShortcut(cb: (kind: 'close' | 'next') => void): () => void
 }
 
 // ---- 版本更新（对齐 Nav-Tools UpdateService 语义） ----

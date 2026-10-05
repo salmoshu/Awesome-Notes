@@ -66,6 +66,17 @@ app.on('web-contents-created', (_e, contents) => {
       }
     }
   })
+  // 标签快捷键：Ctrl+W / Ctrl+Tab 拦截后转发渲染层（默认会关窗口/切焦点）
+  contents.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown' || !input.control) return
+    if (input.key === 'w') {
+      e.preventDefault()
+      mainWindow?.webContents.send('tab-shortcut', 'close')
+    } else if (input.key === 'Tab') {
+      e.preventDefault()
+      mainWindow?.webContents.send('tab-shortcut', 'next')
+    }
+  })
 })
 
 function watchExternalPageStatus(): void {

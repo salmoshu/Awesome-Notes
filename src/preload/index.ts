@@ -31,7 +31,12 @@ const bridge: AwesomeNotesBridge = {
     ipcRenderer.on('ext-page-status', listener)
     return () => ipcRenderer.removeListener('ext-page-status', listener)
   },
-  openInSystemBrowser: (url) => ipcRenderer.invoke('shell:open-external', url)
+  openInSystemBrowser: (url) => ipcRenderer.invoke('shell:open-external', url),
+  onTabShortcut: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, kind: 'close' | 'next') => cb(kind)
+    ipcRenderer.on('tab-shortcut', listener)
+    return () => ipcRenderer.removeListener('tab-shortcut', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('awesomeNotes', bridge)

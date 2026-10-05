@@ -70,6 +70,10 @@ function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: Tre
           if (blocked) return
           void openDoc(node.path)
         }}
+        onDoubleClick={() => {
+          if (blocked) return
+          void useStore.getState().openTab(node.path, { pinned: true })
+        }}
         onContextMenu={(e) => ctx.onMenu(e, node, exactBlocked)}
         title={node.path}
       >
@@ -113,6 +117,9 @@ export default function Sidebar() {
     selectProject,
     removeProject,
     importProject,
+    openTab,
+    openRemoteDialog,
+    disconnectRemote,
     rescan,
     tree,
     treeLoading,
@@ -199,12 +206,23 @@ export default function Sidebar() {
           bump()
         }
       },
-      {
-        key: 'remove',
-        label: '从列表移除…',
-        danger: true,
-        onClick: () => void onRemove(p)
-      }
+      ...(p.remoteId
+        ? [
+            {
+              key: 'disconnect',
+              label: '断开远程连接…',
+              danger: true,
+              onClick: () => disconnectRemote(p.remoteId!)
+            }
+          ]
+        : [
+            {
+              key: 'remove',
+              label: '从列表移除…',
+              danger: true,
+              onClick: () => void onRemove(p)
+            }
+          ])
     ]
     setMenu({ x: e.clientX, y: e.clientY, items })
   }
@@ -265,6 +283,16 @@ export default function Sidebar() {
         <button className="sb-proj-toggle" onClick={() => setProjCollapsed(!projCollapsed)}>
           <span className={`dir-arrow ${!projCollapsed ? 'open' : ''}`}>▸</span>
           项目（{visibleProjects.length}）
+          <span
+            className="sb-remote-btn"
+            title="远程连接（连接远端 notesd 服务）"
+            onClick={(e) => {
+              e.stopPropagation()
+              openRemoteDialog()
+            }}
+          >
+            🌐
+          </span>
           {hiddenCount > 0 && (
             <span
               className="sb-hidden-count"
@@ -297,7 +325,7 @@ export default function Sidebar() {
                   onContextMenu={(e) => projectMenu(e, p)}
                   title={`${displayName(p)}\n${p.path}\n（右键：更名/屏蔽/复制路径/移除）`}
                 >
-                  <span className="proj-name">{displayName(p)}</span>
+                  <span className="proj-name">{p.remoteId ? '🌐 ' : ''}{displayName(p)}</span>
                   <span className="proj-count">{p.docCount} 篇</span>
                 </button>
               )
