@@ -3,7 +3,7 @@ out/
 dist/
 release/
 sidecar/bin/
-sidecar/data/
+sidecar/data*/
 .toolchain/
 *.log
 .DS_Store
