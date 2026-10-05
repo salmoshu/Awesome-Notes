@@ -32,6 +32,9 @@ export interface RemoteConfig {
   wsl?: { distro: string }
   /** kind=ssh：自动部署的 SSH 参数（凭据仅存本机 localStorage） */
   ssh?: SshConfig
+  /** 本地记住的远程项目路径清单（本地为真相，远端 notesd 只是壳）；
+   *  undefined = 老数据未迁移，首次连接时采纳远端已注册项目 */
+  projectPaths?: string[]
 }
 
 export type RemoteKind = 'wsl' | 'ssh' | 'docker' | 'custom'

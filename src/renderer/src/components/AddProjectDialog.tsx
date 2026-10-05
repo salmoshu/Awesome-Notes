@@ -23,6 +23,7 @@ export default function AddProjectDialog() {
     connectRemote,
     reconnectRemote,
     disconnectRemote,
+    removeRemote,
     importProject,
     importRemoteProject,
     toast
@@ -249,9 +250,19 @@ export default function AddProjectDialog() {
                       </span>
                       <span className="rd-ops">
                         {r.connected && <button onClick={() => openBrowse(r)}>添加目录</button>}
+                        {r.connected && (
+                          <button onClick={() => disconnectRemote(r.id)}>断开</button>
+                        )}
                         {!r.connected && <button onClick={() => void reconnectRemote(r.id)}>重连</button>}
-                        <button className="danger" onClick={() => disconnectRemote(r.id)}>
-                          断开
+                        <button
+                          className="danger"
+                          onClick={() => {
+                            if (window.confirm(`确定从列表移除远程连接「${r.name}」？（不影响远端文件）`)) {
+                              removeRemote(r.id)
+                            }
+                          }}
+                        >
+                          移除
                         </button>
                       </span>
                     </div>

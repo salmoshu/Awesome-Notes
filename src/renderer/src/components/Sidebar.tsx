@@ -1,6 +1,6 @@
 import { useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useStore } from '../store'
-import type { DocNode, Project } from '@shared/types'
+import type { DocNode, Project, RemoteConfig } from '@shared/types'
 import Chevron from './Chevron'
 import ContextMenu, { type MenuItem } from './ContextMenu'
 import GitPanel from './GitPanel'
@@ -124,6 +124,7 @@ export default function Sidebar() {
     openTab,
     openAddProject,
     disconnectRemote,
+    removeRemote,
     reconnectRemote,
     remotes,
     rescan,
@@ -165,6 +166,14 @@ export default function Sidebar() {
   const onRemove = async (p: Project) => {
     if (window.confirm(`确定从列表移除「${displayName(p)}」？（不会删除磁盘文件）`)) {
       await removeProject(p.id)
+    }
+  }
+
+  const onRemoveRemote = (remoteId: string) => {
+    const r = remotes.find((x) => x.id === remoteId)
+    if (!r) return
+    if (window.confirm(`确定从列表移除远程连接「${r.name}」？其项目将不再呈现（不影响远端文件）。`)) {
+      removeRemote(remoteId)
     }
   }
 
@@ -220,9 +229,15 @@ export default function Sidebar() {
         ? [
             {
               key: 'disconnect',
-              label: '断开远程连接…',
-              danger: true,
+              label: '断开连接（保留条目，可重连）',
+              separatorBefore: true,
               onClick: () => disconnectRemote(p.remoteId!)
+            },
+            {
+              key: 'rm-remote',
+              label: '从列表移除…',
+              danger: true,
+              onClick: () => onRemoveRemote(p.remoteId!)
             }
           ]
         : [
@@ -235,6 +250,25 @@ export default function Sidebar() {
           ])
     ]
     setMenu({ x: e.clientX, y: e.clientY, items })
+  }
+
+  /** 未连接远程占位条目的右键菜单：重连 / 从列表移除 */
+  const remoteMenu = (e: ReactMouseEvent, r: RemoteConfig): void => {
+    e.preventDefault()
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        { key: 'reconnect', label: '重新连接', onClick: () => void onReconnect(r.id) },
+        {
+          key: 'rm-remote',
+          label: '从列表移除…',
+          danger: true,
+          separatorBefore: true,
+          onClick: () => onRemoveRemote(r.id)
+        }
+      ]
+    })
   }
 
   const treeMenu = (e: ReactMouseEvent, node: DocNode, exactBlocked: boolean): void => {
@@ -336,7 +370,8 @@ export default function Sidebar() {
               <div
                 key={r.id}
                 className="proj-item proj-remote-off"
-                title={`${r.name}\n${r.host}:${r.port}\n未连接${r.lastError ? `\n上次失败：${r.lastError}` : ''}`}
+                onContextMenu={(e) => remoteMenu(e, r)}
+                title={`${r.name}\n${r.host}:${r.port}\n未连接${r.lastError ? `\n上次失败：${r.lastError}` : ''}\n（右键：重连/从列表移除）`}
               >
                 <span className="proj-name">🌐 {r.name}</span>
                 <button

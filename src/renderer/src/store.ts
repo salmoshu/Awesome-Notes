@@ -8,6 +8,7 @@ import {
   reestablishRemote,
   remoteBase,
   saveRemotes,
+  syncRemoteProjects,
   teardownRemote,
   type ConnectParams,
   type LogLine
@@ -100,7 +101,10 @@ interface State {
   closeAddProject(): void
   connectRemote(params: ConnectParams, onLog?: (l: LogLine) => void): Promise<string>
   reconnectRemote(remoteId: string): Promise<void>
+  /** 断开连接：远程条目保留在列表中（未连接占位，可 ⟳ 重连），其项目从列表消失 */
   disconnectRemote(remoteId: string): void
+  /** 从列表移除：远程条目彻底移除，不再呈现（不影响远端文件） */
+  removeRemote(remoteId: string): void
   /** 在已连接的远程上导入目录为项目 */
   importRemoteProject(remoteId: string, path: string): Promise<void>
   openExtPage(url: string): void
@@ -239,21 +243,26 @@ export const useStore = create<State>((set, get) => ({
 
   async connectRemote(params, onLog) {
     try {
-      const { remote, projects } = await establishRemote(params, onLog)
-      // 同一目标（发行版/主机/端口）重复连接时沿用旧配置 id，避免出现双份远程与项目
+      const { remote } = await establishRemote(params, onLog)
+      // 同一目标（发行版/主机/端口）重复连接时沿用旧配置 id 与本地项目清单，
+      // 避免出现双份远程，也保证本地移除过的项目不会"复活"
       const dup = get().remotes.find((r) => r.id !== remote.id && sameRemoteTarget(r, remote))
-      if (dup) remote.id = dup.id
-      const remotes = [...get().remotes.filter((r) => r.id !== remote.id), remote]
+      if (dup) {
+        remote.id = dup.id
+        remote.projectPaths = remote.projectPaths ?? dup.projectPaths
+      }
+      const synced = await syncRemoteProjects(remote)
+      const remotes = [...get().remotes.filter((r) => r.id !== synced.remote.id), synced.remote]
       saveRemotes(remotes)
       set({
         remotes,
         projects: mergeProjects(get().localProjects, remotes, [
-          ...get().projects.filter((p) => p.remoteId && p.remoteId !== remote.id),
-          ...projects
+          ...get().projects.filter((p) => p.remoteId && p.remoteId !== synced.remote.id),
+          ...synced.projects
         ])
       })
-      get().toast('ok', `已连接 ${remote.name}（${projects.length} 个项目）`)
-      return remote.id
+      get().toast('ok', `已连接 ${synced.remote.name}（${synced.projects.length} 个项目）`)
+      return synced.remote.id
     } catch (err) {
       get().toast('err', `连接失败：${err}`)
       throw err
@@ -264,17 +273,18 @@ export const useStore = create<State>((set, get) => ({
     const remote = get().remotes.find((r) => r.id === remoteId)
     if (!remote) return
     try {
-      const { remote: ok, projects } = await reestablishRemote(remote)
-      const remotes = get().remotes.map((r) => (r.id === remoteId ? ok : r))
+      const { remote: ok } = await reestablishRemote(remote)
+      const synced = await syncRemoteProjects(ok)
+      const remotes = get().remotes.map((r) => (r.id === remoteId ? synced.remote : r))
       saveRemotes(remotes)
       set({
         remotes,
         projects: mergeProjects(get().localProjects, remotes, [
           ...get().projects.filter((p) => p.remoteId && p.remoteId !== remoteId),
-          ...projects
+          ...synced.projects
         ])
       })
-      get().toast('ok', `${ok.name} 已重新连接`)
+      get().toast('ok', `${synced.remote.name} 已重新连接`)
     } catch (err) {
       const remotes = get().remotes.map((r) =>
         r.id === remoteId ? { ...r, connected: false, lastError: String(err) } : r
@@ -286,6 +296,29 @@ export const useStore = create<State>((set, get) => ({
   },
 
   disconnectRemote(remoteId) {
+    const remote = get().remotes.find((r) => r.id === remoteId)
+    if (!remote) return
+    if (remote.connId) void teardownRemote(remote.connId)
+    // 断开但保留条目：标为未连接占位，项目随 mergeProjects 过滤消失，可 ⟳ 重连
+    const remotes = get().remotes.map((r) =>
+      r.id === remoteId ? { ...r, connected: false, lastError: undefined, connId: undefined } : r
+    )
+    saveRemotes(remotes)
+    const activeId = get().activeProjectId
+    set({
+      remotes,
+      projects: mergeProjects(get().localProjects, remotes, get().projects),
+      activeProjectId:
+        activeId && activeId.startsWith(remoteId + ':') ? null : activeId,
+      tree: activeId && activeId.startsWith(remoteId + ':') ? null : get().tree,
+      tabs: activeId && activeId.startsWith(remoteId + ':') ? [] : get().tabs,
+      activeTabId: activeId && activeId.startsWith(remoteId + ':') ? null : get().activeTabId,
+      activeDoc: activeId && activeId.startsWith(remoteId + ':') ? null : get().activeDoc
+    })
+    get().toast('info', `已断开 ${remote.name}，需要时可点击 ⟳ 重新连接`)
+  },
+
+  removeRemote(remoteId) {
     const remote = get().remotes.find((r) => r.id === remoteId)
     if (remote?.connId) void teardownRemote(remote.connId)
     const remotes = get().remotes.filter((r) => r.id !== remoteId)
@@ -301,6 +334,7 @@ export const useStore = create<State>((set, get) => ({
       activeTabId: activeId && activeId.startsWith(remoteId + ':') ? null : get().activeTabId,
       activeDoc: activeId && activeId.startsWith(remoteId + ':') ? null : get().activeDoc
     })
+    if (remote) get().toast('ok', `已从列表移除 ${remote.name}`)
   },
 
   openExtPage(url) {
@@ -360,8 +394,16 @@ export const useStore = create<State>((set, get) => ({
       const p = await apiWith<Project>(remoteBase(remote), remote.token, 'POST', '/api/projects', { path })
       // 本地合成远程项目条目，省去整表重拉
       const composed: Project = { ...p, id: `${remoteId}:${p.id}`, remoteId }
+      // 记入本地项目清单（本地为真相，重连时按清单恢复）
+      const remotes = get().remotes.map((r) =>
+        r.id === remoteId
+          ? { ...r, projectPaths: [...new Set([...(r.projectPaths ?? []), p.path])] }
+          : r
+      )
+      saveRemotes(remotes)
       set({
-        projects: mergeProjects(get().localProjects, get().remotes, [
+        remotes,
+        projects: mergeProjects(get().localProjects, remotes, [
           ...get().projects.filter((x) => x.remoteId && x.id !== composed.id),
           composed
         ])
@@ -377,22 +419,28 @@ export const useStore = create<State>((set, get) => ({
   async removeProject(id) {
     const p = get().projects.find((x) => x.id === id)
     if (p?.remoteId) {
-      if (!window.confirm(`将从远端 notesd 移除「${p.name}」（不影响远端磁盘文件）。继续？`)) return
+      if (!window.confirm(`确定从列表移除「${p.name}」？（不影响远端磁盘文件）`)) return
+      // 本地清单为真相：从本地清单删除即不再呈现；远端注销尽力而为（远端 notesd 只是壳）
       try {
         await apiFor(id)('DELETE', `/api/projects/${id}`)
-      } catch (err) {
-        get().toast('err', `远端移除失败：${err}`)
-        return
+      } catch {
+        /* 远端不可达不阻断本地移除 */
       }
+      const remotes = get().remotes.map((r) =>
+        r.id === p.remoteId
+          ? { ...r, projectPaths: (r.projectPaths ?? []).filter((x) => x !== p.path) }
+          : r
+      )
+      saveRemotes(remotes)
       projectWorkspaces.delete(id)
       const activeId = get().activeProjectId
-      set({ projects: get().projects.filter((x) => x.id !== id) })
+      set({ remotes, projects: get().projects.filter((x) => x.id !== id) })
       if (activeId === id) {
         set({ activeProjectId: null, tree: null, tabs: [], activeTabId: null, activeDoc: null, annotations: [] })
         const first = get().projects[0]
         if (first) await get().selectProject(first.id)
       }
-      get().toast('ok', '已从远端移除')
+      get().toast('ok', '已从列表移除')
       return
     }
     try {

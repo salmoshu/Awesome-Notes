@@ -119,7 +119,7 @@ export async function teardownRemote(connId: string): Promise<void> {
   }
 }
 
-/** 握手：健康检查 + 拉取远端项目列表，合并为带 remoteId 前缀的项目 */
+/** 握手：健康检查 + 拉取远端项目列表（项目列表仅用于老数据迁移时一次性采纳） */
 async function handshake(remote: RemoteConfig): Promise<{ remote: RemoteConfig; projects: Project[] }> {
   const r = await apiWith<{ projects: Project[] }>(remoteBase(remote), remote.token, 'GET', '/api/projects')
   return {
@@ -128,40 +128,67 @@ async function handshake(remote: RemoteConfig): Promise<{ remote: RemoteConfig; 
   }
 }
 
-/** 新建远程连接（统一入口）：自动接入（wsl/ssh）或直连（docker/custom） */
+/** 连接后同步项目：本地清单为真相（远端 notesd 只是壳）。
+ *  老数据（projectPaths 缺失）首次连接时一次性采纳远端已注册项目作为本地清单；
+ *  之后按本地清单逐个幂等注册（项目 id 由路径 sha1 派生，跨会话稳定），路径失效的跳过但保留在清单中 */
+export async function syncRemoteProjects(
+  remote: RemoteConfig
+): Promise<{ remote: RemoteConfig; projects: Project[] }> {
+  const h = await handshake(remote)
+  if (!remote.projectPaths) {
+    return { remote: { ...h.remote, projectPaths: h.projects.map((p) => p.path) }, projects: h.projects }
+  }
+  const out: Project[] = []
+  for (const path of remote.projectPaths) {
+    try {
+      const p = await apiWith<Project>(remoteBase(h.remote), h.remote.token, 'POST', '/api/projects', { path })
+      out.push({ ...p, id: `${h.remote.id}:${p.id}`, remoteId: h.remote.id })
+    } catch {
+      /* 路径失效（已删除/暂不可读）：跳过；恢复后下次连接自动挂上 */
+    }
+  }
+  return { remote: h.remote, projects: out }
+}
+
+/** 新建远程连接（统一入口）：自动接入（wsl/ssh）或直连（docker/custom）。
+ *  只建立通道与健康检查；项目清单由 store 去重后调 syncRemoteProjects 同步 */
 export async function establishRemote(
   params: ConnectParams,
   onLog: (l: LogLine) => void = () => {}
-): Promise<{ remote: RemoteConfig; projects: Project[] }> {
+): Promise<{ remote: RemoteConfig }> {
   if (params.kind === 'wsl') {
     const token = newToken()
     const res = await setupRemote({ kind: 'wsl', token, wsl: { distro: params.distro } }, onLog)
-    return handshake({
-      id: newId(),
-      name: params.name?.trim() || `WSL · ${params.distro}`,
-      host: res.host,
-      port: res.port,
-      token,
-      connected: false,
-      kind: 'wsl',
-      connId: res.connId,
-      wsl: { distro: params.distro }
-    })
+    return {
+      remote: {
+        id: newId(),
+        name: params.name?.trim() || `WSL · ${params.distro}`,
+        host: res.host,
+        port: res.port,
+        token,
+        connected: false,
+        kind: 'wsl',
+        connId: res.connId,
+        wsl: { distro: params.distro }
+      }
+    }
   }
   if (params.kind === 'ssh') {
     const token = newToken()
     const res = await setupRemote({ kind: 'ssh', token, ssh: params.ssh }, onLog)
-    return handshake({
-      id: newId(),
-      name: params.name?.trim() || `${params.ssh.user}@${params.ssh.host}`,
-      host: res.host,
-      port: res.port,
-      token,
-      connected: false,
-      kind: 'ssh',
-      connId: res.connId,
-      ssh: params.ssh
-    })
+    return {
+      remote: {
+        id: newId(),
+        name: params.name?.trim() || `${params.ssh.user}@${params.ssh.host}`,
+        host: res.host,
+        port: res.port,
+        token,
+        connected: false,
+        kind: 'ssh',
+        connId: res.connId,
+        ssh: params.ssh
+      }
+    }
   }
   // docker / custom：直连已有 notesd
   const probe: RemoteConfig = {
@@ -176,30 +203,23 @@ export async function establishRemote(
   onLog({ level: 'info', msg: `健康检查 ${remoteBase(probe)} …` })
   await apiWith(remoteBase(probe), probe.token, 'GET', '/api/health')
   onLog({ level: 'ok', msg: 'notesd 可达，握手完成' })
-  return handshake(probe)
+  return { remote: probe }
 }
 
-/** 重连：wsl/ssh 需重新 setup（sidecar 重启后句柄/转发已失效），其余直接刷新 */
+/** 重连：wsl/ssh 需重新 setup（sidecar 重启后句柄/转发已失效），其余直接用原配置 */
 export async function reestablishRemote(
   remote: RemoteConfig,
   onLog: (l: LogLine) => void = () => {}
-): Promise<{ remote: RemoteConfig; projects: Project[] }> {
+): Promise<{ remote: RemoteConfig }> {
   if (remote.kind === 'wsl' && remote.wsl) {
     const res = await setupRemote({ kind: 'wsl', token: remote.token, wsl: remote.wsl }, onLog)
-    return handshake({ ...remote, host: res.host, port: res.port, connId: res.connId })
+    return { remote: { ...remote, host: res.host, port: res.port, connId: res.connId } }
   }
   if (remote.kind === 'ssh' && remote.ssh) {
     const res = await setupRemote({ kind: 'ssh', token: remote.token, ssh: remote.ssh }, onLog)
-    return handshake({ ...remote, host: res.host, port: res.port, connId: res.connId })
+    return { remote: { ...remote, host: res.host, port: res.port, connId: res.connId } }
   }
-  return handshake(remote)
-}
-
-/** 已连接远程的项目列表刷新 */
-export async function refreshRemote(
-  remote: RemoteConfig
-): Promise<{ remote: RemoteConfig; projects: Project[] }> {
-  return handshake(remote)
+  return { remote }
 }
 
 // ---- 远程目录浏览（选择要导入的目录） ----
