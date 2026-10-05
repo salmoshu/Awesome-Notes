@@ -249,7 +249,9 @@ export const useStore = create<State>((set, get) => ({
       const dup = get().remotes.find((r) => r.id !== remote.id && sameRemoteTarget(r, remote))
       if (dup) {
         remote.id = dup.id
-        remote.projectPaths = remote.projectPaths ?? dup.projectPaths
+        // 沿用已存条目的本地项目清单；已存条目缺该字段（v0.3.11 前的老数据）时保持
+        // undefined，由 syncRemoteProjects 首连一次性采纳远端注册表完成迁移
+        remote.projectPaths = dup.projectPaths
       }
       const synced = await syncRemoteProjects(remote)
       const remotes = [...get().remotes.filter((r) => r.id !== synced.remote.id), synced.remote]
@@ -394,10 +396,17 @@ export const useStore = create<State>((set, get) => ({
       const p = await apiWith<Project>(remoteBase(remote), remote.token, 'POST', '/api/projects', { path })
       // 本地合成远程项目条目，省去整表重拉
       const composed: Project = { ...p, id: `${remoteId}:${p.id}`, remoteId }
-      // 记入本地项目清单（本地为真相，重连时按清单恢复）
+      // 记入本地项目清单与快照（本地为真相，重连时按清单恢复，断开后按原名占位）
       const remotes = get().remotes.map((r) =>
         r.id === remoteId
-          ? { ...r, projectPaths: [...new Set([...(r.projectPaths ?? []), p.path])] }
+          ? {
+              ...r,
+              projectPaths: [...new Set([...(r.projectPaths ?? []), p.path])],
+              projects: [
+                ...(r.projects ?? []).filter((x) => x.id !== p.id),
+                { id: p.id, name: p.name, path: p.path, docCount: p.docCount }
+              ]
+            }
           : r
       )
       saveRemotes(remotes)
@@ -418,17 +427,29 @@ export const useStore = create<State>((set, get) => ({
 
   async removeProject(id) {
     const p = get().projects.find((x) => x.id === id)
-    if (p?.remoteId) {
-      if (!window.confirm(`确定从列表移除「${p.name}」？（不影响远端磁盘文件）`)) return
-      // 本地清单为真相：从本地清单删除即不再呈现；远端注销尽力而为（远端 notesd 只是壳）
-      try {
-        await apiFor(id)('DELETE', `/api/projects/${id}`)
-      } catch {
-        /* 远端不可达不阻断本地移除 */
+    // 在线远程项目取自项目列表；已断开连接的离线占位项目从连接快照中解析
+    const snapRemote = p?.remoteId
+      ? undefined
+      : get().remotes.find((r) => (r.projects ?? []).some((sp) => `${r.id}:${sp.id}` === id))
+    const remoteId = p?.remoteId ?? snapRemote?.id
+    if (remoteId) {
+      const path =
+        p?.path ?? snapRemote?.projects?.find((sp) => `${snapRemote.id}:${sp.id}` === id)?.path
+      // 本地清单为真相：从本地清单删除即不再呈现；在线时顺带尽力远端注销（远端 notesd 只是壳）
+      if (get().remotes.find((r) => r.id === remoteId)?.connected) {
+        try {
+          await apiFor(id)('DELETE', `/api/projects/${id}`)
+        } catch {
+          /* 远端不可达不阻断本地移除 */
+        }
       }
       const remotes = get().remotes.map((r) =>
-        r.id === p.remoteId
-          ? { ...r, projectPaths: (r.projectPaths ?? []).filter((x) => x !== p.path) }
+        r.id === remoteId
+          ? {
+              ...r,
+              projectPaths: (r.projectPaths ?? []).filter((x) => x !== path),
+              projects: (r.projects ?? []).filter((sp) => `${r.id}:${sp.id}` !== id)
+            }
           : r
       )
       saveRemotes(remotes)

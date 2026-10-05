@@ -1,7 +1,7 @@
 // 远程连接：zcode 式接入 —— WSL/SSH 由本地 sidecar 自动部署并启动远端 notesd
 // （NDJSON 流式回报进度），Docker/自定义 直连已有 notesd 地址。
 // 连接配置持久化在 localStorage；应用重启后 connected=false，在侧栏显示未连接占位，由用户点击 ⟳ 手动重连。
-import type { Project, RemoteConfig, SshConfig } from '@shared/types'
+import type { Project, RemoteConfig, RemoteProjectInfo, SshConfig } from '@shared/types'
 import { api, apiInfo, apiWith } from '../api'
 
 const REMOTES_KEY = 'awesome-notes-remotes'
@@ -119,17 +119,24 @@ export async function teardownRemote(connId: string): Promise<void> {
   }
 }
 
+/** 远端项目列表 → 本地快照（断开后侧栏按原项目名占位；重连同步时刷新） */
+function snapProjects(list: Project[]): RemoteProjectInfo[] {
+  return list.map((p) => ({ id: p.id, name: p.name, path: p.path, docCount: p.docCount }))
+}
+
 /** 握手：健康检查 + 拉取远端项目列表（项目列表仅用于老数据迁移时一次性采纳） */
 async function handshake(remote: RemoteConfig): Promise<{ remote: RemoteConfig; projects: Project[] }> {
   const r = await apiWith<{ projects: Project[] }>(remoteBase(remote), remote.token, 'GET', '/api/projects')
+  const raw = r.projects ?? []
   return {
-    remote: { ...remote, connected: true, lastError: undefined },
-    projects: (r.projects ?? []).map((p) => ({ ...p, id: `${remote.id}:${p.id}`, remoteId: remote.id }))
+    remote: { ...remote, connected: true, lastError: undefined, projects: snapProjects(raw) },
+    projects: raw.map((p) => ({ ...p, id: `${remote.id}:${p.id}`, remoteId: remote.id }))
   }
 }
 
 /** 连接后同步项目：本地清单为真相（远端 notesd 只是壳）。
- *  老数据（projectPaths 缺失）首次连接时一次性采纳远端已注册项目作为本地清单；
+ *  新建连接 projectPaths 已初始化为 []，不采纳远端存量（远端注册表只是历史导入的镜像，
+ *  全量采纳会让项目"凭空出现"）；仅老数据（projectPaths 缺失）首连一次性采纳远端已注册项目。
  *  之后按本地清单逐个幂等注册（项目 id 由路径 sha1 派生，跨会话稳定），路径失效的跳过但保留在清单中 */
 export async function syncRemoteProjects(
   remote: RemoteConfig
@@ -139,15 +146,18 @@ export async function syncRemoteProjects(
     return { remote: { ...h.remote, projectPaths: h.projects.map((p) => p.path) }, projects: h.projects }
   }
   const out: Project[] = []
+  const snap: RemoteProjectInfo[] = []
   for (const path of remote.projectPaths) {
     try {
       const p = await apiWith<Project>(remoteBase(h.remote), h.remote.token, 'POST', '/api/projects', { path })
       out.push({ ...p, id: `${h.remote.id}:${p.id}`, remoteId: h.remote.id })
+      snap.push({ id: p.id, name: p.name, path: p.path, docCount: p.docCount })
     } catch {
       /* 路径失效（已删除/暂不可读）：跳过；恢复后下次连接自动挂上 */
     }
   }
-  return { remote: h.remote, projects: out }
+  // 快照以本地清单为准（而非握手时远端的全量注册表），断开后按原名占位
+  return { remote: { ...h.remote, projects: snap }, projects: out }
 }
 
 /** 新建远程连接（统一入口）：自动接入（wsl/ssh）或直连（docker/custom）。
@@ -169,7 +179,9 @@ export async function establishRemote(
         connected: false,
         kind: 'wsl',
         connId: res.connId,
-        wsl: { distro: params.distro }
+        wsl: { distro: params.distro },
+        // 新连接本地项目清单从空开始（本地为真相），不采纳远端注册表存量
+        projectPaths: []
       }
     }
   }
@@ -186,7 +198,8 @@ export async function establishRemote(
         connected: false,
         kind: 'ssh',
         connId: res.connId,
-        ssh: params.ssh
+        ssh: params.ssh,
+        projectPaths: []
       }
     }
   }
@@ -198,7 +211,8 @@ export async function establishRemote(
     port: params.port,
     token: params.token.trim(),
     connected: false,
-    kind: params.kind
+    kind: params.kind,
+    projectPaths: []
   }
   onLog({ level: 'info', msg: `健康检查 ${remoteBase(probe)} …` })
   await apiWith(remoteBase(probe), probe.token, 'GET', '/api/health')

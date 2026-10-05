@@ -228,16 +228,16 @@ export default function Sidebar() {
       ...(p.remoteId
         ? [
             {
-              key: 'disconnect',
-              label: '断开连接（保留条目，可重连）',
-              separatorBefore: true,
-              onClick: () => disconnectRemote(p.remoteId!)
-            },
-            {
-              key: 'rm-remote',
+              key: 'remove',
               label: '从列表移除…',
               danger: true,
-              onClick: () => onRemoveRemote(p.remoteId!)
+              separatorBefore: true,
+              onClick: () => void onRemove(p)
+            },
+            {
+              key: 'disconnect',
+              label: '断开远程连接',
+              onClick: () => disconnectRemote(p.remoteId!)
             }
           ]
         : [
@@ -266,6 +266,25 @@ export default function Sidebar() {
           danger: true,
           separatorBefore: true,
           onClick: () => onRemoveRemote(r.id)
+        }
+      ]
+    })
+  }
+
+  /** 已断开远程的项目占位条目右键菜单：重连 / 移除该项目（离线可删，本地清单为真相） */
+  const offlineProjectMenu = (e: ReactMouseEvent, r: RemoteConfig, p: Project): void => {
+    e.preventDefault()
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        { key: 'reconnect', label: '重新连接', onClick: () => void onReconnect(r.id) },
+        {
+          key: 'remove',
+          label: '从列表移除…',
+          danger: true,
+          separatorBefore: true,
+          onClick: () => void onRemove(p)
         }
       ]
     })
@@ -344,7 +363,7 @@ export default function Sidebar() {
         </button>
         {!projCollapsed && (
           <div className="sb-proj-list">
-            {projects.length === 0 && (
+            {projects.length === 0 && disconnectedRemotes.length === 0 && (
               <div className="sb-empty">
                 还没有项目。
                 <br />
@@ -366,24 +385,56 @@ export default function Sidebar() {
                 </button>
               )
             })}
-            {disconnectedRemotes.map((r) => (
-              <div
-                key={r.id}
-                className="proj-item proj-remote-off"
-                onContextMenu={(e) => remoteMenu(e, r)}
-                title={`${r.name}\n${r.host}:${r.port}\n未连接${r.lastError ? `\n上次失败：${r.lastError}` : ''}\n（右键：重连/从列表移除）`}
-              >
-                <span className="proj-name">🌐 {r.name}</span>
-                <button
-                  className={`proj-reconnect ${connecting.has(r.id) ? 'spin' : ''}`}
-                  title="重新连接"
-                  disabled={connecting.has(r.id)}
-                  onClick={() => void onReconnect(r.id)}
-                >
-                  ⟳
-                </button>
-              </div>
-            ))}
+            {disconnectedRemotes.flatMap((r) => {
+              const snaps = r.projects ?? []
+              // 无项目快照：保留连接名占位（否则该连接无从重连/移除）
+              if (snaps.length === 0) {
+                return [
+                  <div
+                    key={r.id}
+                    className="proj-item proj-remote-off"
+                    onContextMenu={(e) => remoteMenu(e, r)}
+                    title={`${r.name}\n${r.host}:${r.port}\n未连接${r.lastError ? `\n上次失败：${r.lastError}` : ''}\n（右键：重连/从列表移除）`}
+                  >
+                    <span className="proj-name">🌐 {r.name}</span>
+                    <button
+                      className={`proj-reconnect ${connecting.has(r.id) ? 'spin' : ''}`}
+                      title="重新连接"
+                      disabled={connecting.has(r.id)}
+                      onClick={() => void onReconnect(r.id)}
+                    >
+                      ⟳
+                    </button>
+                  </div>
+                ]
+              }
+              // 断开后按原项目名占位（而非连接名）；点击/⟳ 重连，右键可移除单个项目
+              return snaps.map((sp) => {
+                const proj: Project = { ...sp, id: `${r.id}:${sp.id}`, remoteId: r.id, addedAt: '' }
+                return (
+                  <div
+                    key={proj.id}
+                    className="proj-item proj-remote-off"
+                    onClick={() => void onReconnect(r.id)}
+                    onContextMenu={(e) => offlineProjectMenu(e, r, proj)}
+                    title={`${displayName(proj)}\n${sp.path}\n未连接${r.lastError ? `（上次失败：${r.lastError}）` : ''}\n（点击重连；右键：重连/移除）`}
+                  >
+                    <span className="proj-name">🌐 {displayName(proj)}</span>
+                    <button
+                      className={`proj-reconnect ${connecting.has(r.id) ? 'spin' : ''}`}
+                      title="重新连接"
+                      disabled={connecting.has(r.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void onReconnect(r.id)
+                      }}
+                    >
+                      ⟳
+                    </button>
+                  </div>
+                )
+              })
+            })}
             <button className="proj-import" onClick={openAddProject}>
               ＋ 添加项目
             </button>

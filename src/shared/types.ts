@@ -33,8 +33,21 @@ export interface RemoteConfig {
   /** kind=ssh：自动部署的 SSH 参数（凭据仅存本机 localStorage） */
   ssh?: SshConfig
   /** 本地记住的远程项目路径清单（本地为真相，远端 notesd 只是壳）；
-   *  undefined = 老数据未迁移，首次连接时采纳远端已注册项目 */
+   *  新建连接初始为 []（不采纳远端存量）；
+   *  undefined = v0.3.11 前的老数据未迁移，首次重连时一次性采纳远端已注册项目 */
   projectPaths?: string[]
+  /** 远程项目的本地快照（连接/同步时刷新）：断开后侧栏按原项目名占位显示，
+   *  而不是只呈现一行连接名 */
+  projects?: RemoteProjectInfo[]
+}
+
+/** 远程项目的本地快照条目（id 为远端 notesd 注册 id，路径 sha1 派生；
+ *  呈现/操作时的合成项目 id = `${remoteId}:${id}`） */
+export interface RemoteProjectInfo {
+  id: string
+  name: string
+  path: string
+  docCount: number
 }
 
 export type RemoteKind = 'wsl' | 'ssh' | 'docker' | 'custom'
