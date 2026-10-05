@@ -99,6 +99,7 @@ export default function AnnotationPanel() {
     setComposeQuote,
     createAnnotation,
     setAnnStatus,
+    editAnnotation,
     deleteAnnotation,
     activeDoc,
     projects,
@@ -107,6 +108,7 @@ export default function AnnotationPanel() {
     mode
   } = useStore()
   const [draft, setDraft] = useState('')
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
   const [locating, setLocating] = useState<string | null>(null)
   // 面板页签随文档标签记忆（默认目录）；划词批注时自动切回批注
   const storedPanel = useStore((st) => st.tabs.find((t) => t.id === st.activeTabId)?.panel)
@@ -276,32 +278,64 @@ export default function AnnotationPanel() {
             <div className="ap-card-quote" title={a.quote}>
               “{a.quote.length > 70 ? a.quote.slice(0, 70) + '…' : a.quote}”
             </div>
-            <div className="ap-card-text">{a.text}</div>
+            {editing?.id === a.id ? (
+              <div className="ap-edit">
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={editing.text}
+                  onChange={(e) => setEditing({ id: a.id, text: e.target.value })}
+                  spellCheck={false}
+                />
+                <div className="ap-card-ops">
+                  <button
+                    disabled={!editing.text.trim()}
+                    onClick={() => {
+                      void editAnnotation(a, editing.text.trim())
+                      setEditing(null)
+                    }}
+                    title="保存修改"
+                  >
+                    ✓ 保存
+                  </button>
+                  <button onClick={() => setEditing(null)} title="放弃修改">
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="ap-card-text">{a.text}</div>
+            )}
             <div className="ap-card-meta">
               <span className={`ap-status ${a.status}`}>{a.status === 'open' ? '待处理' : '已完成'}</span>
               <span className="ap-time">{fmtTime(a.updatedAt)}</span>
             </div>
-            <div className="ap-card-ops">
-              <button onClick={() => locate(a)} title="在正文中定位">◎ 定位</button>
-              <button onClick={() => void copyAnnAddress(a)} title="复制批注地址（发给 agent）">
-                ⧉ 地址
-              </button>
-              <button
-                onClick={() => void setAnnStatus(a, a.status === 'open' ? 'done' : 'open')}
-                title="切换状态"
-              >
-                {a.status === 'open' ? '✓ 完成' : '↺ 重开'}
-              </button>
-              <button
-                className="danger"
-                onClick={() => {
-                  if (window.confirm('删除这条批注？')) void deleteAnnotation(a)
-                }}
-                title="删除"
-              >
-                ✕
-              </button>
-            </div>
+            {editing?.id !== a.id && (
+              <div className="ap-card-ops">
+                <button onClick={() => locate(a)} title="在正文中定位">◎ 定位</button>
+                <button onClick={() => void copyAnnAddress(a)} title="复制批注地址（发给 agent）">
+                  ⧉ 地址
+                </button>
+                <button onClick={() => setEditing({ id: a.id, text: a.text })} title="编辑批注内容">
+                  ✎ 编辑
+                </button>
+                <button
+                  onClick={() => void setAnnStatus(a, a.status === 'open' ? 'done' : 'open')}
+                  title="切换状态"
+                >
+                  {a.status === 'open' ? '✓ 完成' : '↺ 重开'}
+                </button>
+                <button
+                  className="danger"
+                  onClick={() => {
+                    if (window.confirm('删除这条批注？')) void deleteAnnotation(a)
+                  }}
+                  title="删除"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         ))}
           </div>

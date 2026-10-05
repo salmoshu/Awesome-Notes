@@ -21,6 +21,22 @@ const treeOpenState = new Map<string, boolean>()
 
 type TreeTab = 'docs' | 'search' | 'git'
 
+/** VSCode 风格折叠箭头（chevron，展开时旋转 90°） */
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg className={`dir-arrow ${open ? 'open' : ''}`} width="13" height="13" viewBox="0 0 16 16" aria-hidden>
+      <path
+        d="M6 3.5 10.5 8 6 12.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function extIcon(ext?: string): string {
   switch (ext) {
     case '.md':
@@ -98,7 +114,7 @@ function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: Tre
         }}
         onContextMenu={(e) => ctx.onMenu(e, node, exactBlocked)}
       >
-        <span className={`dir-arrow ${open && !blocked ? 'open' : ''}`}>▸</span>
+        <Chevron open={open && !blocked} />
         <span className="dir-name">{node.name}</span>
         <span className="dir-count">{countDocs(node)}</span>
       </button>
@@ -274,7 +290,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="sb-projects">
         <button className="sb-proj-toggle" onClick={() => setProjCollapsed(!projCollapsed)}>
-          <span className={`dir-arrow ${!projCollapsed ? 'open' : ''}`}>▸</span>
+          <Chevron open={!projCollapsed} />
           项目（{visibleProjects.length}）
           {hiddenCount > 0 && (
             <span
@@ -308,7 +324,7 @@ export default function Sidebar() {
                   onContextMenu={(e) => projectMenu(e, p)}
                   title={`${displayName(p)}\n${p.path}\n（右键：更名/屏蔽/复制路径/移除）`}
                 >
-                  <span className="proj-name">{p.remoteId ? '🌐 ' : ''}{displayName(p)}</span>
+                  <span className="proj-name">{p.remoteId ? '🌐 ' : '💻 '}{displayName(p)}</span>
                   <span className="proj-count">{p.docCount} 篇</span>
                 </button>
               )

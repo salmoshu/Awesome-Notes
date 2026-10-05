@@ -15,6 +15,8 @@ type server struct {
 	token    string
 	registry *registry
 	anns     *annotationStore
+	assets   string
+	remotes  *remoteRegistry
 }
 
 func (s *server) routes(mux *http.ServeMux) {
@@ -41,6 +43,9 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/projects/{id}/git/diff", s.auth(s.handleGitDiff))
 	mux.HandleFunc("GET /api/wsl/distros", s.auth(s.handleWslDistros))
 	mux.HandleFunc("GET /api/wsl/home", s.auth(s.handleWslHome))
+	mux.HandleFunc("GET /api/fs/list", s.auth(s.handleFsList))
+	mux.HandleFunc("POST /api/remote/setup", s.auth(s.handleRemoteSetup))
+	mux.HandleFunc("POST /api/remote/teardown", s.auth(s.handleRemoteTeardown))
 	mux.HandleFunc("POST /api/projects/{id}/git/add", s.auth(s.handleGitAdd))
 	mux.HandleFunc("POST /api/projects/{id}/git/reset", s.auth(s.handleGitReset))
 	mux.HandleFunc("POST /api/projects/{id}/git/discard", s.auth(s.handleGitDiscard))

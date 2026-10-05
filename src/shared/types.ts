@@ -24,6 +24,25 @@ export interface RemoteConfig {
   token: string
   connected: boolean
   lastError?: string
+  /** 连接方式；旧数据缺省视为 custom */
+  kind?: RemoteKind
+  /** sidecar 持有的连接句柄 id（wsl/ssh 自动接入；断开时用于 teardown） */
+  connId?: string
+  /** kind=wsl：自动部署的发行版 */
+  wsl?: { distro: string }
+  /** kind=ssh：自动部署的 SSH 参数（凭据仅存本机 localStorage） */
+  ssh?: SshConfig
+}
+
+export type RemoteKind = 'wsl' | 'ssh' | 'docker' | 'custom'
+
+export interface SshConfig {
+  host: string
+  port: number
+  user: string
+  auth: 'password' | 'key'
+  password?: string
+  keyPath?: string
 }
 
 export interface DocNode {

@@ -12,3 +12,5 @@ release-v*/
 # 本地个人文件，不入库
 .zcodeignore
 set-volume-min.ps1
+
+tmp/

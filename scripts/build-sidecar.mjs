@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'sidecar', 'bin')
-const out = join(outDir, 'notesd.exe')
 
 function findGo() {
   const local = join(root, '.toolchain', 'go', 'bin', 'go.exe')
@@ -26,6 +25,20 @@ if (!go) {
 }
 
 mkdirSync(outDir, { recursive: true })
-console.log('[build-sidecar] go build → sidecar/bin/notesd.exe')
-execFileSync(go, ['build', '-o', out, '.'], { cwd: join(root, 'sidecar'), stdio: 'inherit' })
+
+// Windows 本地服务 + Linux amd64/arm64 部署包（WSL/SSH 远程接入时推送到远端运行）
+const targets = [
+  { out: 'notesd.exe', env: {} },
+  { out: 'notesd-linux-amd64', env: { GOOS: 'linux', GOARCH: 'amd64', CGO_ENABLED: '0' } },
+  { out: 'notesd-linux-arm64', env: { GOOS: 'linux', GOARCH: 'arm64', CGO_ENABLED: '0' } }
+]
+
+for (const t of targets) {
+  console.log(`[build-sidecar] go build → sidecar/bin/${t.out}`)
+  execFileSync(go, ['build', '-o', join(outDir, t.out), '.'], {
+    cwd: join(root, 'sidecar'),
+    stdio: 'inherit',
+    env: { ...process.env, GOTOOLCHAIN: 'local', ...t.env }
+  })
+}
 console.log('[build-sidecar] 完成')

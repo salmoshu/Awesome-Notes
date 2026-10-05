@@ -6,10 +6,10 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"io"
 	"net/http"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf16"
 )
@@ -18,11 +18,28 @@ import (
 func runWsl(timeout time.Duration, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	return runWslCtx(ctx, args...)
+}
+
+// runWslCtx 同 runWsl，但由调用方控制超时/取消。
+func runWslCtx(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "wsl.exe", args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	hideWindow(cmd)
 	b, err := cmd.Output()
 	if err != nil {
 		return "", err
+	}
+	return decodeWslOutput(string(b)), nil
+}
+
+// runWslStdin 带标准输入执行 wsl.exe（用于经管道上传二进制文件），捕获合并输出。
+func runWslStdin(ctx context.Context, stdin io.Reader, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "wsl.exe", args...)
+	hideWindow(cmd)
+	cmd.Stdin = stdin
+	b, err := cmd.CombinedOutput()
+	if err != nil {
+		return decodeWslOutput(string(b)), err
 	}
 	return decodeWslOutput(string(b)), nil
 }

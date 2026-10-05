@@ -2,7 +2,16 @@ import { create } from 'zustand'
 import type { Project, RemoteConfig } from '@shared/types'
 import type { Annotation, DocContent, DocNode } from '@shared/types'
 import { api, apiWith, apiInfo } from './api'
-import { connectRemote, loadRemotes, refreshRemote, remoteBase, saveRemotes } from './utils/remote'
+import {
+  establishRemote,
+  loadRemotes,
+  reestablishRemote,
+  remoteBase,
+  saveRemotes,
+  teardownRemote,
+  type ConnectParams,
+  type LogLine
+} from './utils/remote'
 import { applyAppearance, loadSettings, saveSettings, type AppSettings } from './utils/settings'
 
 export type ViewMode = 'read' | 'edit'
@@ -21,6 +30,8 @@ export interface DocTab {
   scrollTop: number
   /** 右侧面板页签（目录/批注）记忆，默认目录 */
   panel: 'toc' | 'ann'
+  /** 已加载的文档内容缓存（切回标签即时呈现，后台校验新鲜度） */
+  doc?: DocContent
 }
 
 export interface Toast {
@@ -72,9 +83,11 @@ interface State {
   closeSettings(): void
   openAddProject(): void
   closeAddProject(): void
-  connectRemote(host: string, port: number, token: string, name?: string): Promise<void>
+  connectRemote(params: ConnectParams, onLog?: (l: LogLine) => void): Promise<string>
   reconnectRemote(remoteId: string): Promise<void>
   disconnectRemote(remoteId: string): void
+  /** 在已连接的远程上导入目录为项目 */
+  importRemoteProject(remoteId: string, path: string): Promise<void>
   openExtPage(url: string): void
   closeExtPage(): void
   setPendingLocate(v: { path: string; keyword: string } | null): void
@@ -92,6 +105,8 @@ interface State {
   openDoc(path: string): Promise<void>
   activateTab(id: string): Promise<void>
   closeTab(id: string): void
+  /** 固定标签（双击标签名，等效文件树双击） */
+  pinTab(id: string): void
   patchActiveTab(patch: Partial<DocTab>): void
 
   setFilter(f: string): void
@@ -103,6 +118,8 @@ interface State {
   setComposeQuote(q: State['composeQuote']): void
   createAnnotation(text: string): Promise<void>
   setAnnStatus(a: Annotation, status: 'open' | 'done'): Promise<void>
+  /** 编辑批注内容（引用锚点不变） */
+  editAnnotation(a: Annotation, text: string): Promise<void>
   deleteAnnotation(a: Annotation): Promise<void>
 }
 
@@ -196,9 +213,9 @@ export const useStore = create<State>((set, get) => ({
     set({ addProjectOpen: false })
   },
 
-  async connectRemote(host, port, token, name) {
+  async connectRemote(params, onLog) {
     try {
-      const { remote, projects } = await connectRemote(host, port, token, name)
+      const { remote, projects } = await establishRemote(params, onLog)
       const remotes = [...get().remotes.filter((r) => r.id !== remote.id), remote]
       saveRemotes(remotes)
       set({
@@ -206,10 +223,10 @@ export const useStore = create<State>((set, get) => ({
         projects: mergeProjects(get().localProjects, remotes, [
           ...get().projects.filter((p) => p.remoteId && p.remoteId !== remote.id),
           ...projects
-        ]),
-        addProjectOpen: false
+        ])
       })
       get().toast('ok', `已连接 ${remote.name}（${projects.length} 个项目）`)
+      return remote.id
     } catch (err) {
       get().toast('err', `连接失败：${err}`)
       throw err
@@ -220,7 +237,7 @@ export const useStore = create<State>((set, get) => ({
     const remote = get().remotes.find((r) => r.id === remoteId)
     if (!remote) return
     try {
-      const { remote: ok, projects } = await refreshRemote(remote)
+      const { remote: ok, projects } = await reestablishRemote(remote)
       const remotes = get().remotes.map((r) => (r.id === remoteId ? ok : r))
       saveRemotes(remotes)
       set({
@@ -242,6 +259,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   disconnectRemote(remoteId) {
+    const remote = get().remotes.find((r) => r.id === remoteId)
+    if (remote?.connId) void teardownRemote(remote.connId)
     const remotes = get().remotes.filter((r) => r.id !== remoteId)
     saveRemotes(remotes)
     const activeId = get().activeProjectId
@@ -306,13 +325,34 @@ export const useStore = create<State>((set, get) => ({
   async importProject(path) {
     try {
       const p = await api<Project>('POST', '/api/projects', { path })
-      const r = await api<{ projects: Project[] }>('GET', '/api/projects')
-      const localProjects = r.projects ?? []
+      // POST 响应即完整项目信息，本地合并，省去整表重拉
+      const localProjects = [...get().localProjects.filter((x) => x.id !== p.id), p]
       set({ localProjects, projects: mergeProjects(localProjects, get().remotes, get().projects) })
-      await get().selectProject(p.id)
       get().toast('ok', `已导入 ${p.name}（${p.docCount} 篇文档）`)
+      void get().selectProject(p.id)
     } catch (err) {
       get().toast('err', `导入失败：${err}`)
+    }
+  },
+
+  async importRemoteProject(remoteId, path) {
+    const remote = get().remotes.find((r) => r.id === remoteId)
+    if (!remote) return
+    try {
+      const p = await apiWith<Project>(remoteBase(remote), remote.token, 'POST', '/api/projects', { path })
+      // 本地合成远程项目条目，省去整表重拉
+      const composed: Project = { ...p, id: `${remoteId}:${p.id}`, remoteId }
+      set({
+        projects: mergeProjects(get().localProjects, get().remotes, [
+          ...get().projects.filter((x) => x.remoteId && x.id !== composed.id),
+          composed
+        ])
+      })
+      get().toast('ok', `已导入 ${p.name}（${p.docCount} 篇文档）`)
+      void get().selectProject(composed.id)
+    } catch (err) {
+      get().toast('err', `导入失败：${err}`)
+      throw err
     }
   },
 
@@ -324,8 +364,8 @@ export const useStore = create<State>((set, get) => ({
     }
     try {
       await api('DELETE', `/api/projects/${id}`)
-      const r = await api<{ projects: Project[] }>('GET', '/api/projects')
-      const localProjects = r.projects ?? []
+      // 本地过滤，省去整表重拉
+      const localProjects = get().localProjects.filter((x) => x.id !== id)
       const { activeProjectId } = get()
       set({ localProjects, projects: mergeProjects(localProjects, get().remotes, get().projects) })
       if (activeProjectId === id) {
@@ -400,7 +440,7 @@ export const useStore = create<State>((set, get) => ({
     const preview = s.tabs.find((t) => !t.pinned)
     if (preview) {
       if (preview.dirty && !window.confirm('预览标签有未保存的修改，切换文档将丢弃。继续？')) return
-      const tab: DocTab = { ...preview, path, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
+      const tab: DocTab = { ...preview, path, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc', doc: undefined }
       set({ tabs: s.tabs.map((t) => (t.id === tab.id ? tab : t)) })
       await loadTabInto(tab, set, get)
       return
@@ -458,6 +498,10 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
+  pinTab(id) {
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, pinned: true } : t)) }))
+  },
+
   patchActiveTab(patch) {
     const s = get()
     set({ tabs: s.tabs.map((t) => (t.id === s.activeTabId ? { ...t, ...patch } : t)) })
@@ -511,6 +555,8 @@ export const useStore = create<State>((set, get) => ({
       const cur = get().tabs.find((t) => t.id === get().activeTabId)
       if (cur) {
         set({ tabs: get().tabs.map((t) => (t.id === cur.id ? { ...t, draft: s.draft, dirty: false } : t)) })
+        // 同步标签内容缓存（保存后即最新）
+        cacheTabDoc(cur.id, { ...s.activeDoc, content: s.draft }, set, get)
       }
       set({
         activeDoc: { ...s.activeDoc, content: s.draft },
@@ -578,6 +624,22 @@ export const useStore = create<State>((set, get) => ({
     await get().loadAnnotations()
   },
 
+  async editAnnotation(a, text) {
+    const s = get()
+    if (!s.activeProjectId) return
+    try {
+      await apiFor(s.activeProjectId)('PATCH', `/api/projects/${s.activeProjectId}/annotations`, {
+        doc: a.doc,
+        id: a.id,
+        text
+      })
+      await get().loadAnnotations()
+      get().toast('ok', '批注已更新')
+    } catch (err) {
+      get().toast('err', `批注更新失败：${err}`)
+    }
+  },
+
   async deleteAnnotation(a) {
     const s = get()
     if (!s.activeProjectId) return
@@ -589,7 +651,9 @@ export const useStore = create<State>((set, get) => ({
   }
 }))
 
-/** 把 tab 对应文档加载为当前显示（内部） */
+/** 把 tab 对应文档加载为当前显示（内部）。
+ *  有缓存：立即呈现（切换无白闪），随后后台拉取校验新鲜度；
+ *  无缓存：首载走 loading，完成后写入标签缓存。 */
 async function loadTabInto(
   tab: DocTab,
   set: (partial: Partial<State>) => void,
@@ -597,47 +661,77 @@ async function loadTabInto(
 ): Promise<void> {
   const projectId = get().activeProjectId
   if (!projectId) return
+  const ext = (tab.path.split('.').pop() ?? '').toLowerCase()
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)
+  const cached = isImage
+    ? ({ path: tab.path, ext, content: '', size: 0, mtime: '' } as DocContent)
+    : tab.doc
+
   set({
     activeTabId: tab.id,
-    docLoading: true,
-    activeDoc: null,
+    docLoading: !cached,
+    activeDoc: cached ?? null,
     composeQuote: null,
     mode: tab.mode,
-    draft: tab.draft,
+    draft: tab.dirty ? tab.draft : (cached?.content ?? tab.draft),
     dirty: tab.dirty
   })
-  const ext = (tab.path.split('.').pop() ?? '').toLowerCase()
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) {
-    // 图片：不拉内容，直接以 /raw URL 渲染
-    const doc: DocContent = { path: tab.path, ext, content: '', size: 0, mtime: '' }
-    set({ activeDoc: doc, draft: '', dirty: false, docLoading: false })
-    set({ annotations: [] })
-    return
+
+  if (cached) {
+    // 图片：不拉内容也不校验
+    if (isImage) {
+      set({ annotations: [] })
+      cacheTabDoc(tab.id, cached, set, get)
+      return
+    }
+    await get().loadAnnotations()
+    restoreScroll(tab, get)
   }
+
   try {
     const doc = await apiFor<DocContent>(projectId)(
       'GET',
       `/api/projects/${projectId}/doc?path=${encodeURIComponent(tab.path)}`
     )
+    cacheTabDoc(tab.id, doc, set, get)
     const fresh = get().tabs.find((t) => t.id === tab.id)
-    const useDraft = fresh?.dirty ? fresh.draft : doc.content
-    set({
-      activeDoc: doc,
-      draft: useDraft,
-      dirty: fresh?.dirty ?? false,
-      docLoading: false
-    })
-    await get().loadAnnotations()
-    // 渲染完成后恢复该标签记忆的滚动位置
-    const remembered = get().tabs.find((t) => t.id === tab.id)?.scrollTop ?? 0
-    if (remembered > 0) {
-      setTimeout(() => {
-        const body = document.querySelector('.reader-body')
-        if (body) body.scrollTop = remembered
-      }, 80)
+    if (!fresh) return
+    if (!cached) {
+      // 首载完成：呈现并恢复滚动位置
+      const useDraft = fresh.dirty ? fresh.draft : doc.content
+      set({ activeDoc: doc, draft: useDraft, dirty: fresh.dirty, docLoading: false })
+      await get().loadAnnotations()
+      restoreScroll(fresh, get)
+    } else if (!fresh.dirty && (doc.mtime !== cached.mtime || doc.size !== cached.size)) {
+      // 外部修改过：静默更新内容（不打扰未保存草稿）
+      set({ activeDoc: doc, draft: doc.content, dirty: false })
     }
   } catch (err) {
-    set({ docLoading: false })
-    get().toast('err', `文档读取失败：${err}`)
+    if (!cached) {
+      set({ docLoading: false })
+      get().toast('err', `文档读取失败：${err}`)
+    }
+    // 有缓存时后台校验失败保持现状（如远程刚断开）
+  }
+}
+
+/** 文档内容写入标签缓存 */
+function cacheTabDoc(
+  tabId: string,
+  doc: DocContent,
+  set: (partial: Partial<State>) => void,
+  get: () => State
+): void {
+  set({ tabs: get().tabs.map((t) => (t.id === tabId ? { ...t, doc } : t)) })
+}
+
+/** 恢复标签记忆的滚动位置（渲染完成后执行） */
+function restoreScroll(tab: DocTab, get: () => State): void {
+  const remembered = get().tabs.find((t) => t.id === tab.id)?.scrollTop ?? 0
+  if (remembered > 0) {
+    setTimeout(() => {
+      const body = document.querySelector('.reader-body')
+      if (body) body.scrollTop = remembered
+    }, 80)
   }
 }

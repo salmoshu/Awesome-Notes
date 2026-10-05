@@ -1,10 +1,11 @@
 // Awesome-Notes sidecar：本地文档扫描 / 读写 / 批注存储服务。
-// 仅依赖 Go 标准库。由 Electron 主进程拉起，也可独立运行（供纯 Web 预览）。
+// 标准库 + golang.org/x/crypto/ssh（SSH 远程部署）。由 Electron 主进程拉起，也可独立运行（供纯 Web 预览）。
 //
 // 启动参数：
-//   -addr  监听地址（默认 127.0.0.1:0，0 表示自动分配端口）
-//   -token 访问令牌（除 /api/health 外所有请求需携带 X-Notes-Token）
-//   -data  数据目录（项目注册表 projects.json 存放处）
+//   -addr   监听地址（默认 127.0.0.1:0，0 表示自动分配端口）
+//   -token  访问令牌（除 /api/health 外所有请求需携带 X-Notes-Token）
+//   -data   数据目录（项目注册表 projects.json 存放处）
+//   -assets 资源目录（内含 notesd-linux-amd64 / notesd-linux-arm64，用于向 WSL/SSH 远端部署）
 //
 // 就绪后向 stdout 打印一行：NOTESD_READY port=<port>
 package main
@@ -19,12 +20,14 @@ import (
 	"path/filepath"
 )
 
-const version = "0.1.0"
+// version 远端部署校验依据：远端 notesd 版本不一致时重新部署。
+const version = "0.2.0"
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:0", "listen address")
 	token := flag.String("token", "dev-token", "access token")
 	dataDir := flag.String("data", filepath.Join("sidecar", "data"), "data directory")
+	assets := flag.String("assets", "", "assets directory (notesd linux binaries for remote deploy)")
 	flag.Parse()
 
 	if err := os.MkdirAll(*dataDir, 0o755); err != nil {
@@ -34,6 +37,8 @@ func main() {
 	s := &server{
 		token:    *token,
 		registry: newRegistry(filepath.Join(*dataDir, "projects.json")),
+		assets:   *assets,
+		remotes:  newRemoteRegistry(),
 	}
 
 	ln, err := net.Listen("tcp", *addr)
