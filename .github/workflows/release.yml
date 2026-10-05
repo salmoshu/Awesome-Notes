@@ -1,0 +1,65 @@
+# 自动构建与发布：推送 v* 标签（或手动触发）→ 构建 Windows 安装包 → 发布 GitHub Release。
+# 本地应用的 electron-updater 依赖 Release 上的三件套（exe / blockmap / latest.yml）自动更新。
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装 Go（sidecar 构建）
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（sidecar + 渲染层 + 版本标记校验 + electron-builder）
+        run: node scripts/run-electron-builder.cjs
+        env:
+          OUTPUT_DIR: release-ci
+
+      - name: 确定发布标签
+        id: tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if (-not $tag) { $tag = "${{ inputs.tag }}" }
+          if (-not $tag) { $tag = "v$(node -p "require('./package.json').version")" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: 发布 Release（安装包三件套）
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          $exe = Get-ChildItem "release-ci/Awesome-Notes-Setup-*.exe" | Where-Object { $_.Name -notlike "*.blockmap" } | Select-Object -First 1
+          $blockmap = "$($exe.FullName).blockmap"
+          gh release create $env:TAG $exe.FullName $blockmap "release-ci/latest.yml" `
+            --title "Awesome-Notes $env:TAG" --notes-file release-notes.md --latest `
+            2>&1 | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "release 已存在，改为覆盖上传资产"
+            gh release upload $env:TAG $exe.FullName $blockmap "release-ci/latest.yml" --clobber
+          }
