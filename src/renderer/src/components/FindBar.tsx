@@ -7,7 +7,8 @@ interface Props {
 
 /**
  * 文档内查找（Ctrl+F，模仿 VSCode 查找小部件）：
- * 高亮当前阅读区（Markdown 正文 / TXT / 编辑器）全部匹配，Enter/Shift+Enter 上下导航。
+ * 高亮阅读区（Markdown 正文 / TXT）全部匹配，Enter/Shift+Enter 上下导航。
+ * 编辑区不参与：编辑器自行管理 DOM，外部插入高亮会破坏内容与 Markdown 的同步。
  */
 export default function FindBar({ onClose }: Props) {
   const [query, setQuery] = useState('')
@@ -39,7 +40,7 @@ export default function FindBar({ onClose }: Props) {
       if (!container) return
       const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
         acceptNode: (n) =>
-          n.parentElement?.closest('button, .find-bar, mark.find-hit') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+          n.parentElement?.closest('button, .find-bar, mark.find-hit, .editor-pane') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
       })
       const needle = q.toLowerCase()
       const marks: HTMLElement[] = []

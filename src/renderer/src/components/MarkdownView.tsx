@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type ImgHTMLAttributes } from 'react'
+import { useEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type ImgHTMLAttributes } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -41,114 +41,6 @@ function remarkCjkSoftBreaks() {
   }
 }
 
-/* ---- 阅读模式块级原位编辑 ---- */
-
-interface EditRange {
-  startLine: number
-  endLine: number
-}
-
-interface BlockEditCtxValue {
-  range: EditRange | null
-  source: string
-  begin: (node: unknown) => void
-  apply: (text: string) => void
-  cancel: () => void
-}
-
-const BlockEditCtx = createContext<BlockEditCtxValue | null>(null)
-
-/** react-markdown 传入的 hast node，position 行号 1-based 且含端点 */
-function rangeOf(node: unknown): EditRange | null {
-  const pos = (node as { position?: { start?: { line?: unknown }; end?: { line?: unknown } } } | null)?.position
-  const s = pos?.start?.line
-  const e = pos?.end?.line
-  return typeof s === 'number' && typeof e === 'number' ? { startLine: s, endLine: e } : null
-}
-
-function sliceLines(source: string, r: EditRange): string {
-  return source.split(/\r?\n/).slice(r.startLine - 1, r.endLine).join('\n')
-}
-
-function sameRange(a: EditRange | null, b: EditRange | null): boolean {
-  return !!a && !!b && a.startLine === b.startLine && a.endLine === b.endLine
-}
-
-/** 块源码编辑器：Ctrl+Enter / 失焦应用并保存，Esc 取消 */
-function BlockEditor(): JSX.Element {
-  const ctx = useContext(BlockEditCtx)
-  const [text, setText] = useState(() => (ctx?.range ? sliceLines(ctx.source, ctx.range) : ''))
-  const taRef = useRef<HTMLTextAreaElement>(null)
-  const doneRef = useRef(false)
-
-  useEffect(() => {
-    const ta = taRef.current
-    if (!ta) return
-    ta.focus()
-    ta.setSelectionRange(ta.value.length, ta.value.length)
-    ta.style.height = `${ta.scrollHeight}px`
-  }, [])
-
-  const finish = (applyIt: boolean): void => {
-    if (doneRef.current) return
-    doneRef.current = true
-    if (applyIt) ctx?.apply(text)
-    else ctx?.cancel()
-  }
-
-  return (
-    <div className="blk-edit">
-      <textarea
-        ref={taRef}
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value)
-          e.target.style.height = 'auto'
-          e.target.style.height = `${e.target.scrollHeight}px`
-        }}
-        onKeyDown={(e) => {
-          e.stopPropagation()
-          if (e.key === 'Escape') finish(false)
-          else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finish(true)
-        }}
-        onBlur={() => finish(true)}
-      />
-      <div className="blk-edit-hint">Ctrl+Enter 应用 · Esc 取消</div>
-    </div>
-  )
-}
-
-type BlockProps = { node?: unknown; children?: React.ReactNode } & Record<string, unknown>
-
-/** 生成可原位编辑的块组件：普通态渲染原标签并监听双击，命中编辑区间时换成源码编辑器 */
-function editableBlock(Tag: string) {
-  return function EditableBlock({ node, children, ...rest }: BlockProps): JSX.Element {
-    const ctx = useContext(BlockEditCtx)
-    if (ctx && sameRange(ctx.range, rangeOf(node))) return <BlockEditor />
-    const El = Tag as keyof JSX.IntrinsicElements
-    return (
-      <El
-        {...(rest as Record<string, unknown>)}
-        onDoubleClick={(e: React.MouseEvent) => {
-          if (!ctx) return
-          // 链接与批注高亮上的双击保留原交互（跳转 / 打开批注）
-          if ((e.target as HTMLElement).closest('a, mark')) return
-          e.preventDefault()
-          e.stopPropagation()
-          ctx.begin(node)
-        }}
-      >
-        {children}
-      </El>
-    )
-  }
-}
-
-const EDITABLE_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'pre', 'blockquote', 'table']
-const EDITABLE_COMPONENTS: Record<string, (props: BlockProps) => JSX.Element> = Object.fromEntries(
-  EDITABLE_TAGS.map((t) => [t, editableBlock(t)])
-)
-
 function cleanLinkText(s: string): string {
   const m = s.match(CJK_IN_URL)
   let t = m && m.index !== undefined ? s.slice(0, m.index) : s
@@ -157,7 +49,7 @@ function cleanLinkText(s: string): string {
 }
 
 /** 文档相对链接（../light_language.md）解析为项目内相对路径；越界返回 null */
-function resolveDocLink(fromPath: string, href: string): string | null {
+export function resolveDocLink(fromPath: string, href: string): string | null {
   let h = href.split('#')[0].split('?')[0]
   try {
     h = decodeURIComponent(h)
@@ -340,48 +232,13 @@ function wrapRange(nodes: Text[], starts: number[], s: number, e: number, a: Ann
 
 export default function MarkdownView({ content, annotations, onSelectAnn }: Props) {
   const ref = useRef<HTMLDivElement>(null)
-  const [editRange, setEditRange] = useState<EditRange | null>(null)
-
-  // 原位编辑状态经 context 下发：块组件定义在模块级，编辑区间变化时由 context 触发重渲染
-  const ctxVal = useMemo<BlockEditCtxValue>(
-    () => ({
-      range: editRange,
-      source: content,
-      begin: (node) => {
-        const r = rangeOf(node)
-        if (!r) return
-        const st = useStore.getState()
-        // 块位置对应已保存内容；有未保存草稿时行号可能对不上，先要求保存
-        if (st.dirty) {
-          st.toast('info', '有未保存的修改，请先在原文模式保存（Ctrl+S）后再原位编辑')
-          return
-        }
-        setEditRange(r)
-      },
-      apply: (text) => {
-        const r = editRange
-        setEditRange(null)
-        if (!r) return
-        const nl = content.includes('\r\n') ? '\r\n' : '\n'
-        const lines = content.split(/\r?\n/)
-        lines.splice(r.startLine - 1, r.endLine - r.startLine + 1, ...text.split('\n'))
-        const next = lines.join(nl)
-        if (next === content) return
-        const st = useStore.getState()
-        st.setDraft(next)
-        void st.saveDoc()
-      },
-      cancel: () => setEditRange(null)
-    }),
-    [editRange, content]
-  )
 
   const rendered = useMemo(
     () => (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkCjkSoftBreaks]}
         rehypePlugins={[rehypeHighlight]}
-        components={{ a: MarkdownAnchor, img: MarkdownImg, ...EDITABLE_COMPONENTS }}
+        components={{ a: MarkdownAnchor, img: MarkdownImg }}
       >
         {content}
       </ReactMarkdown>
@@ -389,7 +246,7 @@ export default function MarkdownView({ content, annotations, onSelectAnn }: Prop
     [content]
   )
 
-  // 渲染完成后应用批注高亮（内容、批注或编辑区间变化时重打；编辑中的块为 textarea，不参与）
+  // 渲染完成后应用批注高亮（内容或批注变化时重打）
   useEffect(() => {
     const root = ref.current
     if (!root) return
@@ -406,14 +263,12 @@ export default function MarkdownView({ content, annotations, onSelectAnn }: Prop
       const loc = locate(full, a)
       if (loc) wrapRange(nodes, starts, loc[0], loc[1], a, onSelectAnn)
     }
-  }, [content, annotations, onSelectAnn, editRange])
+  }, [content, annotations, onSelectAnn])
 
   return (
-    <BlockEditCtx.Provider value={ctxVal}>
-      <div className="prose" ref={ref}>
-        {rendered}
-      </div>
-    </BlockEditCtx.Provider>
+    <div className="prose" ref={ref}>
+      {rendered}
+    </div>
   )
 }
 

@@ -363,13 +363,6 @@ export default function Sidebar() {
         </button>
         {!projCollapsed && (
           <div className="sb-proj-list">
-            {projects.length === 0 && disconnectedRemotes.length === 0 && (
-              <div className="sb-empty">
-                还没有项目。
-                <br />
-                导入一个包含 Markdown / HTML 文档的目录开始阅读。
-              </div>
-            )}
             {visibleProjects.map((p) => {
               const hidden = hiddenIds.includes(p.id)
               return (

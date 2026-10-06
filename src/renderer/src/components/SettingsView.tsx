@@ -224,7 +224,7 @@ export default function SettingsView() {
                   阅读
                 </button>
                 <button className={settings.defaultMode === 'edit' ? 'active' : ''} onClick={() => setSetting('defaultMode', 'edit')}>
-                  原文
+                  编辑
                 </button>
               </div>
             </div>

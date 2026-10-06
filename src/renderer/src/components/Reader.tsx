@@ -71,10 +71,11 @@ export default function Reader() {
     void rawBaseFor(activeProjectId).then(setRawBase)
   }, [activeProjectId])
 
-  // Ctrl+F 打开文档内查找
+  // Ctrl+F 打开文档内查找（编辑模式下编辑器自管 DOM，不提供文档内查找）
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        if (useStore.getState().mode === 'edit') return
         e.preventDefault()
         setFindOpen(true)
       }
@@ -82,6 +83,11 @@ export default function Reader() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // 进入编辑模式时关闭查找
+  useEffect(() => {
+    if (mode === 'edit') setFindOpen(false)
+  }, [mode])
 
   // 搜索结果跳转：文档渲染完成后滚动到关键词命中处
   useEffect(() => {
@@ -103,12 +109,7 @@ export default function Reader() {
   const isHtml = activeDoc && ['html', 'htm'].includes(activeDoc.ext)
   const project = projects.find((p) => p.id === activeProjectId)
 
-  const onMouseUp = useCallback((e: React.MouseEvent) => {
-    // 双击用于块原位编辑（detail >= 2），不弹批注气泡
-    if (e.detail > 1) {
-      setPop(null)
-      return
-    }
+  const onMouseUp = useCallback(() => {
     const wrap = proseWrapRef.current
     if (!wrap) return
     const prose = wrap.querySelector('.prose') as HTMLElement | null
@@ -172,9 +173,9 @@ export default function Reader() {
             <button
               className={mode === 'edit' ? 'active' : ''}
               onClick={() => setMode('edit')}
-              title="原文（源码编辑）"
+              title="编辑（所见即所得）"
             >
-              {'</>'}
+              ✎
             </button>
           </div>
         )}
