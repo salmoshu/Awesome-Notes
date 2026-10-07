@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
-import type { Annotation, DocContent } from '@shared/types'
+import { ANNOTATION_KIND_LABELS, type Annotation, type AnnotationKind, type DocContent } from '@shared/types'
 import { scrollToEl } from '../utils/scroll'
 import { findAnnotationRange, scrollToRange, setTextHighlight } from '../utils/textRanges'
 
@@ -11,6 +11,10 @@ function fmtTime(s: string): string {
   } catch {
     return s
   }
+}
+
+function kindOf(a: Annotation): AnnotationKind {
+  return a.kind ?? 'annotation'
 }
 
 interface TocEntry {
@@ -114,11 +118,18 @@ export default function AnnotationPanel() {
     mode
   } = useStore()
   const [draft, setDraft] = useState('')
+  const [kind, setKind] = useState<AnnotationKind>('annotation')
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
   const [locating, setLocating] = useState<string | null>(null)
-  // 面板页签随文档标签记忆（默认目录）；划词批注时自动切回批注
+  // 面板页签随文档标签记忆（默认目录）；划词批注时自动切回标注
   const storedPanel = useStore((st) => st.tabs.find((t) => t.id === st.activeTabId)?.panel)
   const [tab, setTab] = useState<'toc' | 'ann'>(storedPanel ?? 'toc')
+
+  // 标签类型可直接从右侧侧边栏选择历史标签（当前文档用过的）
+  const knownTags = useMemo(
+    () => [...new Set(annotations.filter((a) => kindOf(a) === 'tag').map((a) => a.text.trim()).filter(Boolean))],
+    [annotations]
+  )
 
   useEffect(() => {
     if (storedPanel) setTab(storedPanel)
@@ -133,37 +144,37 @@ export default function AnnotationPanel() {
     if (composeQuote) switchTab('ann')
   }, [composeQuote])
 
-  /** 批量复制：当前文档全部批注（格式化，可直接交给 agent） */
+  /** 批量复制：当前文档全部标注（格式化，可直接交给 agent） */
   const copyAllAnnotations = async (): Promise<void> => {
     if (!project || annotations.length === 0) return
     const annFile = `${project.path}\\.awesome-notes\\annotations.json`
     const body = annotations
       .map((a, i) =>
         [
-          `## 批注 ${i + 1}（${a.status === 'open' ? '待处理' : '已完成'}）`,
+          `## 标注 ${i + 1}（${ANNOTATION_KIND_LABELS[kindOf(a)]} · ${a.status === 'open' ? '待处理' : '已完成'}）`,
           `链接: awesome-notes://${project.name}/${a.doc}#${a.id}`,
           `文档: ${project.path}\\${a.doc.replace(/\//g, '\\')}`,
-          `批注ID: ${a.id}`,
+          `标注ID: ${a.id}`,
           `引用: ${a.quote}`,
-          `要求: ${a.text}`
+          `内容: ${a.text}`
         ].join('\n')
       )
       .join('\n\n')
     const text = [
-      `[Awesome-Notes 批注任务 · ${project.name} / ${activeDoc?.path ?? ''} · 共 ${annotations.length} 条]`,
-      `批注库: ${annFile}`,
+      `[Awesome-Notes 标注任务 · ${project.name} / ${activeDoc?.path ?? ''} · 共 ${annotations.length} 条]`,
+      `标注库: ${annFile}`,
       '',
       body
     ].join('\n')
     await navigator.clipboard.writeText(text)
-    toast('ok', `已复制 ${annotations.length} 条批注（可整体发给 agent）`)
+    toast('ok', `已复制 ${annotations.length} 条标注（可整体发给 agent）`)
   }
 
   const copyAnnFileAddress = async (): Promise<void> => {
     if (!project) return
     const annFile = `${project.path}\\.awesome-notes\\annotations.json`
     await navigator.clipboard.writeText(annFile)
-    toast('ok', '批注库地址已复制')
+    toast('ok', '标注库地址已复制')
   }
 
   const project = projects.find((p) => p.id === activeProjectId)
@@ -173,16 +184,17 @@ export default function AnnotationPanel() {
     const absDoc = `${project.path}\\${a.doc.replace(/\//g, '\\')}`
     const annFile = `${project.path}\\.awesome-notes\\annotations.json`
     const text = [
-      '[Awesome-Notes 批注任务]',
+      '[Awesome-Notes 标注任务]',
       `链接: awesome-notes://${project.name}/${a.doc}#${a.id}`,
       `文档: ${absDoc}`,
-      `批注库: ${annFile}`,
-      `批注ID: ${a.id}`,
+      `标注库: ${annFile}`,
+      `标注ID: ${a.id}`,
+      `类型: ${ANNOTATION_KIND_LABELS[kindOf(a)]}`,
       `引用: ${a.quote}`,
-      `要求: ${a.text}`
+      `内容: ${a.text}`
     ].join('\n')
     await navigator.clipboard.writeText(text)
-    toast('ok', '批注地址已复制，可发给 agent 执行')
+    toast('ok', '标注地址已复制，可发给 agent 执行')
   }
 
   const locate = (a: Annotation) => {
@@ -210,7 +222,7 @@ export default function AnnotationPanel() {
             目录
           </button>
           <button className={tab === 'ann' ? 'active' : ''} onClick={() => switchTab('ann')}>
-            批注 {annotations.length > 0 ? `(${annotations.length})` : ''}
+            标注 {annotations.length > 0 ? `(${annotations.length})` : ''}
           </button>
         </div>
         {tab === 'ann' && (
@@ -230,11 +242,11 @@ export default function AnnotationPanel() {
         <div className="ap-body">
           {annotations.length > 0 && (
             <div className="ap-batch-ops">
-              <button onClick={() => void copyAllAnnotations()} title="复制当前文档全部批注（整体发给 agent）">
-                ⧉ 复制全部批注
+              <button onClick={() => void copyAllAnnotations()} title="复制当前文档全部标注（整体发给 agent）">
+                ⧉ 复制全部标注
               </button>
-              <button onClick={() => void copyAnnFileAddress()} title="复制批注库文件地址">
-                ▤ 批注库地址
+              <button onClick={() => void copyAnnFileAddress()} title="复制标注库文件地址">
+                ▤ 标注库地址
               </button>
             </div>
           )}
@@ -243,23 +255,53 @@ export default function AnnotationPanel() {
               <div className="ap-quote" title={composeQuote.quote}>
                 “{composeQuote.quote.length > 90 ? composeQuote.quote.slice(0, 90) + '…' : composeQuote.quote}”
               </div>
+              <div className="ap-kinds">
+                {(['tag', 'note', 'annotation'] as const).map((k) => (
+                  <button key={k} className={kind === k ? 'active' : ''} onClick={() => setKind(k)}>
+                    {ANNOTATION_KIND_LABELS[k]}
+                  </button>
+                ))}
+              </div>
+              {kind === 'tag' && knownTags.length > 0 && (
+                <div className="ap-tags">
+                  {knownTags.map((t) => (
+                    <button
+                      key={t}
+                      className="ap-tag-chip"
+                      title="点击用该标签标注选中文字"
+                      onClick={() => {
+                        void createAnnotation(t, 'tag')
+                        setDraft('')
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
               <textarea
                 autoFocus
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="批注内容：告诉 agent 要做什么修改…"
-                rows={3}
+                placeholder={
+                  kind === 'tag'
+                    ? '标签名（可直接点上方历史标签）…'
+                    : kind === 'note'
+                      ? '笔记：记录你的思考与备忘…'
+                      : '批注内容：告诉 agent 要做什么修改…'
+                }
+                rows={kind === 'tag' ? 1 : 3}
               />
               <div className="ap-compose-ops">
                 <button
                   className="btn-primary sm"
                   disabled={!draft.trim()}
                   onClick={() => {
-                    void createAnnotation(draft.trim())
+                    void createAnnotation(draft.trim(), kind)
                     setDraft('')
                   }}
                 >
-                  保存批注
+                  保存{ANNOTATION_KIND_LABELS[kind]}
                 </button>
                 <button className="btn-ghost sm" onClick={() => setComposeQuote(null)}>
                   取消
@@ -269,13 +311,13 @@ export default function AnnotationPanel() {
           )}
 
           <div className="ap-list">
-        {annotations.length === 0 && !composeQuote && (
-          <div className="ap-empty">
-            本文档暂无批注。
-            <br />
-            在阅读模式下选中文字即可添加。
-          </div>
-        )}
+          {annotations.length === 0 && !composeQuote && (
+            <div className="ap-empty">
+              本文档暂无标注。
+              <br />
+              在阅读模式下选中文字即可添加标签 / 笔记 / 批注。
+            </div>
+          )}
         {annotations.map((a) => (
           <div
             key={a.id}
@@ -314,16 +356,19 @@ export default function AnnotationPanel() {
               <div className="ap-card-text">{a.text}</div>
             )}
             <div className="ap-card-meta">
+              <span className={`ap-kind ${kindOf(a)}`}>
+                {kindOf(a) === 'tag' ? '🏷 ' : kindOf(a) === 'note' ? '📝 ' : ''}{ANNOTATION_KIND_LABELS[kindOf(a)]}
+              </span>
               <span className={`ap-status ${a.status}`}>{a.status === 'open' ? '待处理' : '已完成'}</span>
               <span className="ap-time">{fmtTime(a.updatedAt)}</span>
             </div>
             {editing?.id !== a.id && (
               <div className="ap-card-ops">
                 <button onClick={() => locate(a)} title="在正文中定位">◎ 定位</button>
-                <button onClick={() => void copyAnnAddress(a)} title="复制批注地址（发给 agent）">
+                <button onClick={() => void copyAnnAddress(a)} title="复制标注地址（发给 agent）">
                   ⧉ 地址
                 </button>
-                <button onClick={() => setEditing({ id: a.id, text: a.text })} title="编辑批注内容">
+                <button onClick={() => setEditing({ id: a.id, text: a.text })} title="编辑标注内容">
                   ✎ 编辑
                 </button>
                 <button
@@ -335,7 +380,7 @@ export default function AnnotationPanel() {
                 <button
                   className="danger"
                   onClick={() => {
-                    if (window.confirm('删除这条批注？')) void deleteAnnotation(a)
+                    if (window.confirm('删除这条标注？')) void deleteAnnotation(a)
                   }}
                   title="删除"
                 >

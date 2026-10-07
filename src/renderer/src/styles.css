@@ -370,9 +370,25 @@ input, textarea { font-family: inherit; }
 .markdown-editor .vditor-wysiwyg > .prose > h6::before { content: none; }
 .reader .seg button { width: auto; font-size: 12px; padding: 5px 10px; }
 .editor-plain {
-  width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none;
-  padding: 16px 20px; background: var(--paper); color: var(--ink);
+  display: block; width: 100%; max-width: var(--reader-width, 80%); height: 100%;
+  box-sizing: border-box; border: none; outline: none; resize: none;
+  margin: 0 auto; padding: 28px 40px; background: var(--paper); color: var(--ink);
   font-family: "JetBrains Mono", Consolas, monospace; font-size: 13.5px; line-height: 1.75;
+}
+
+/* 源码里的软换行包进隐藏占位 span（MarkdownView 渲染补丁），视觉上直接连写 */
+.prose span[data-an-softbreak] { display: none; }
+
+/* 块悬浮工具栏（上移/下移/删除）：从块内左上角移到行左侧空白区（参考 Awesome-Resume 行级操作）。
+   --prose-left 由 MarkdownView.refresh 写入（正文卡片相对编辑器左侧的偏移）；
+   含输入框的弹层（链接/图片/表格编辑）保持原位，不左移。 */
+.markdown-editor .vditor-wysiwyg > div.vditor-panel--none:not(:has(.vditor-input)) {
+  left: calc(var(--prose-left, 0px) + 50px) !important;
+  transform: translate(-100%, 20px);
+  opacity: 1;
+}
+.markdown-editor .vditor-wysiwyg > div.vditor-panel--none:not(:has(.vditor-input)) button {
+  padding: 4px 5px;
 }
 
 /* ---- 批注弹出按钮 ---- */
@@ -427,13 +443,21 @@ input, textarea { font-family: inherit; }
 
 /* ---- 侧栏搜索页签 ---- */
 .search-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.sp-head { display: flex; gap: 6px; padding: 2px 0 8px; }
+.sp-head { display: flex; align-items: center; gap: 2px; padding: 2px 0 8px; }
 .sp-head input {
   flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--sidebar-line);
   border-radius: 8px; background: var(--sb-input-bg); color: var(--sidebar-ink);
   font-size: 12.5px; outline: none;
 }
 .sp-head input:focus { border-color: var(--accent); }
+/* 提交按钮：仅图标、无底色 */
+.sp-go {
+  flex: none; width: 30px; height: 30px; border: none; background: transparent;
+  color: var(--sidebar-ink2); font-size: 15px; border-radius: 8px; line-height: 1;
+}
+.sp-go:hover { background: var(--sb-hover); color: var(--sb-hover-ink); }
+.sp-go:disabled { opacity: 0.45; cursor: not-allowed; }
+.sp-go:disabled:hover { background: transparent; color: var(--sidebar-ink2); }
 .sp-results { flex: 1; overflow-y: auto; min-height: 0; padding: 0 2px 20px; }
 .sp-summary { font-size: 11px; color: var(--sidebar-ink2); padding: 2px 6px 8px; }
 .sp-file { margin-bottom: 6px; }
@@ -499,6 +523,27 @@ input, textarea { font-family: inherit; }
 .ap-status { font-size: 11px; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
 .ap-status.open { background: #fdf4e7; color: #b45309; }
 .ap-status.done { background: #ecf9f1; color: #0f8a4c; }
+/* 类型徽标：标签 / 笔记 / 批注 */
+.ap-kind { font-size: 11px; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+.ap-kind.tag { background: #eef2ff; color: #4f46e5; }
+.ap-kind.note { background: #ecfeff; color: #0e7490; }
+.ap-kind.annotation { background: #fdf4e7; color: #b45309; }
+[data-theme='dark'] .ap-kind.tag { background: #2a2a4a; color: #a5b4fc; }
+[data-theme='dark'] .ap-kind.note { background: #12333a; color: #67e8f9; }
+[data-theme='dark'] .ap-kind.annotation { background: #3a2c18; color: #fbbf24; }
+/* 新建标注的类型选择 + 标签快选 */
+.ap-kinds { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; margin-bottom: 8px; }
+.ap-kinds button {
+  flex: 1; border: none; background: transparent; color: var(--ink2);
+  font-size: 12px; font-weight: 600; padding: 4px 0; border-radius: 6px;
+}
+.ap-kinds button.active { background: var(--accent); color: #fff; }
+.ap-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.ap-tag-chip {
+  border: 1px solid var(--line); background: transparent; color: var(--ink2);
+  border-radius: 999px; padding: 2px 10px; font-size: 11.5px;
+}
+.ap-tag-chip:hover { border-color: var(--accent); color: var(--accent); }
 .ap-time { font-size: 11px; color: var(--ink3); }
 .ap-card-ops { display: flex; gap: 4px; margin-top: 8px; }
 .ap-card-ops button {

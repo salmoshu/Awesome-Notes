@@ -70,8 +70,8 @@ export default function SearchPanel({ projectId }: { projectId: string }) {
           spellCheck={false}
           autoFocus
         />
-        <button className="btn-primary sm" type="submit" disabled={loading || !q.trim()}>
-          {loading ? '…' : '🔍'}
+        <button className="sp-go" type="submit" disabled={loading || !q.trim()} title="搜索">
+          {loading ? '…' : '⌕'}
         </button>
       </form>
 

@@ -261,6 +261,10 @@ func (s *server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) 
 		writeError(w, 400, "doc 与 text 不能为空")
 		return
 	}
+	if a.Kind != "" && a.Kind != "tag" && a.Kind != "note" && a.Kind != "annotation" {
+		writeError(w, 400, "kind 仅支持 tag / note / annotation")
+		return
+	}
 	if _, err := resolveDoc(p.Path, a.Doc); err != nil {
 		writeError(w, 400, err.Error())
 		return

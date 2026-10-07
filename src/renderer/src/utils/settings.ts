@@ -1,10 +1,10 @@
 // 应用设置：localStorage 持久化（Web 预览模式同样可用），变更即生效
 export interface AppSettings {
-  /** 主题：浅色 / 深色 */
-  theme: 'light' | 'dark'
+  /** 主题：浅色 / 深色 / 跟随系统 */
+  theme: 'light' | 'dark' | 'system'
   /** 阅读区正文字号（px） */
   fontSize: number
-  /** 阅读区内容宽度（百分比 70–100，100 为全宽） */
+  /** 阅读区内容宽度（百分比 70–100，100 为全宽；阅读与编辑模式共用） */
   contentWidth: number
   /** 正文使用衬线字体 */
   serifFont: boolean
@@ -48,10 +48,14 @@ export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (raw) {
-      const saved = JSON.parse(raw) as Partial<Omit<AppSettings, 'defaultMode'>> & { defaultMode?: string }
+      const saved = JSON.parse(raw) as Partial<Omit<AppSettings, 'defaultMode'>> & {
+        defaultMode?: string
+        theme?: string
+      }
       return {
         ...DEFAULT_SETTINGS,
         ...saved,
+        theme: saved.theme === 'dark' || saved.theme === 'system' ? saved.theme : 'light',
         contentWidth: normalizeWidth(saved.contentWidth),
         defaultMode: saved.defaultMode === 'source' || saved.defaultMode === 'edit' ? 'source' : 'read'
       }
@@ -66,10 +70,25 @@ export function saveSettings(s: AppSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s))
 }
 
+/** 当前系统是否深色（跟随系统主题用） */
+export function systemPrefersDark(): boolean {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+/** 解析设置中的主题为实际生效的浅/深 */
+export function resolveTheme(theme: AppSettings['theme']): 'light' | 'dark' {
+  return theme === 'dark' || (theme === 'system' && systemPrefersDark()) ? 'dark' : 'light'
+}
+
+// 跟随系统时监听系统主题切换，实时重应用外观
+let systemThemeWatcher: (() => void) | null = null
+let lastApplied: AppSettings | null = null
+
 /** 把外观类设置应用到 DOM（主题、字号、宽度、字体经 CSS 变量生效） */
 export function applyAppearance(s: AppSettings): void {
+  lastApplied = s
   const root = document.documentElement
-  root.dataset.theme = s.theme
+  root.dataset.theme = resolveTheme(s.theme)
   root.style.setProperty('--reader-font-size', `${s.fontSize}px`)
   root.style.setProperty(
     '--reader-width',
@@ -81,4 +100,12 @@ export function applyAppearance(s: AppSettings): void {
       ? '"Source Han Serif SC", "Noto Serif CJK SC", Georgia, "Times New Roman", serif'
       : '"PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, -apple-system, sans-serif'
   )
+  if (!systemThemeWatcher) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => {
+      if (lastApplied?.theme === 'system') applyAppearance(lastApplied)
+    }
+    mq.addEventListener('change', onChange)
+    systemThemeWatcher = () => mq.removeEventListener('change', onChange)
+  }
 }

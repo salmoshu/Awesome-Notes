@@ -8,7 +8,7 @@ type Section = 'appearance' | 'reading' | 'editor' | 'version'
 
 const SECTIONS: Array<{ key: Section; icon: string; label: string }> = [
   { key: 'appearance', icon: '🎨', label: '外观' },
-  { key: 'reading', icon: '📖', label: '阅读与批注' },
+  { key: 'reading', icon: '📖', label: '阅读与标注' },
   { key: 'editor', icon: '✏️', label: '编辑' },
   { key: 'version', icon: '⟳', label: '版本' }
 ]
@@ -147,6 +147,9 @@ export default function SettingsView() {
                 <button className={settings.theme === 'light' ? 'active' : ''} onClick={() => setSetting('theme', 'light')}>
                   浅色
                 </button>
+                <button className={settings.theme === 'system' ? 'active' : ''} onClick={() => setSetting('theme', 'system')}>
+                  跟随系统
+                </button>
                 <button className={settings.theme === 'dark' ? 'active' : ''} onClick={() => setSetting('theme', 'dark')}>
                   深色
                 </button>
@@ -178,7 +181,7 @@ export default function SettingsView() {
                   </button>
                 ))}
               </div>
-              <div className="st-hint">按阅读区宽度的百分比控制内容行宽</div>
+              <div className="st-hint">按阅读区宽度的百分比控制内容行宽，阅读与编辑模式同时生效</div>
             </div>
 
             <div className="st-row">
@@ -215,7 +218,7 @@ export default function SettingsView() {
 
         {section === 'reading' && (
           <div className="st-card">
-            <div className="st-card-title">阅读与批注</div>
+            <div className="st-card-title">阅读与标注</div>
 
             <div className="st-row">
               <div className="st-label">打开文档默认模式</div>
@@ -224,20 +227,20 @@ export default function SettingsView() {
                   阅读模式
                 </button>
                 <button className={settings.defaultMode === 'source' ? 'active' : ''} onClick={() => setSetting('defaultMode', 'source')}>
-                  原文模式
+                  编辑模式
                 </button>
               </div>
             </div>
 
             <div className="st-row">
-              <div className="st-label">默认展开批注面板</div>
+              <div className="st-label">默认展开标注面板</div>
               <button
                 className={`switch ${settings.annPanelDefaultOpen ? 'on' : ''}`}
                 onClick={() => setSetting('annPanelDefaultOpen', !settings.annPanelDefaultOpen)}
               >
                 <span className="switch-dot" />
               </button>
-              <div className="st-hint">打开文档时自动带出右侧批注面板</div>
+              <div className="st-hint">打开文档时自动带出右侧标注面板</div>
             </div>
           </div>
         )}

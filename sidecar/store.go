@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Annotation 一条批注。Quote + Prefix/Suffix 构成"锚点"：
+// Annotation 一条标注（标签/笔记/批注）。Quote + Prefix/Suffix 构成"锚点"：
 // 文档被编辑后锚点可能漂移，agent 按引用文本与上下文重新定位。
 type Annotation struct {
 	ID        string    `json:"id"`
@@ -18,8 +18,9 @@ type Annotation struct {
 	Quote     string    `json:"quote"`  // 被批注的原文
 	Prefix    string    `json:"prefix"` // 原文前 ~40 字符上下文
 	Suffix    string    `json:"suffix"` // 原文后 ~40 字符上下文
-	Text      string    `json:"text"`   // 批注内容（要求 agent 做的事）
+	Text      string    `json:"text"`   // 标注内容（要求 agent 做的事 / 笔记 / 标签名）
 	Status    string    `json:"status"` // open | done
+	Kind      string    `json:"kind"`   // tag | note | annotation（缺省 annotation，兼容旧数据）
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -102,6 +103,9 @@ func (s *annotationStore) create(projectPath string, a *Annotation) error {
 	a.ID = "ann-" + hex.EncodeToString(buf)
 	if a.Status == "" {
 		a.Status = "open"
+	}
+	if a.Kind == "" {
+		a.Kind = "annotation"
 	}
 	a.CreatedAt = time.Now()
 	a.UpdatedAt = a.CreatedAt

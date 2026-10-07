@@ -80,6 +80,15 @@ export interface DocContent {
 
 export type AnnotationStatus = 'open' | 'done'
 
+/** 标注类型：标签（快速归类）/ 笔记（记录思考与备忘）/ 批注（要求修改，可交给 agent） */
+export type AnnotationKind = 'tag' | 'note' | 'annotation'
+
+export const ANNOTATION_KIND_LABELS: Record<AnnotationKind, string> = {
+  tag: '标签',
+  note: '笔记',
+  annotation: '批注'
+}
+
 export interface Annotation {
   id: string
   doc: string
@@ -88,6 +97,8 @@ export interface Annotation {
   suffix: string
   text: string
   status: AnnotationStatus
+  /** 缺省视为 annotation（v0.4.3 之前的历史数据） */
+  kind?: AnnotationKind
   createdAt: string
   updatedAt: string
 }

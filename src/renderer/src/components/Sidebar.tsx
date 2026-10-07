@@ -455,11 +455,11 @@ export default function Sidebar() {
               文档
             </button>
             <button
-              className={`icon-tab ${tab === 'search' ? 'active' : ''}`}
+              className={tab === 'search' ? 'active' : ''}
               onClick={() => setTab('search')}
-              title="搜索"
+              title="搜索项目文档内容"
             >
-              ⌕
+              搜索
             </button>
             <button className={tab === 'git' ? 'active' : ''} onClick={() => setTab('git')}>
               Git

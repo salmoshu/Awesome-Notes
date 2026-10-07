@@ -160,16 +160,16 @@ export default function Reader() {
               aria-label="阅读模式"
               aria-pressed={mode === 'read'}
             >
-              阅读模式
+              📖
             </button>
             <button
               className={mode === 'source' ? 'active' : ''}
               onClick={() => setMode('source')}
-              title="原文模式（编辑源码）"
-              aria-label="原文模式"
+              title="编辑模式（编辑源码）"
+              aria-label="编辑模式"
               aria-pressed={mode === 'source'}
             >
-              原文模式
+              ✎
             </button>
           </div>
         )}
@@ -241,7 +241,7 @@ export default function Reader() {
             onMouseDown={(e) => e.preventDefault()}
             onClick={startCompose}
           >
-            💬 添加批注
+            🏷 添加标签
           </button>
         )}
       </div>

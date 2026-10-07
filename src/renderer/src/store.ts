@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Project, RemoteConfig } from '@shared/types'
-import type { Annotation, DocContent, DocNode } from '@shared/types'
+import type { Annotation, AnnotationKind, DocContent, DocNode } from '@shared/types'
 import { api, apiWith, apiInfo } from './api'
 import {
   establishRemote,
@@ -135,7 +135,7 @@ interface State {
   loadAnnotations(): Promise<void>
   toggleAnnPanel(): void
   setComposeQuote(q: State['composeQuote']): void
-  createAnnotation(text: string): Promise<void>
+  createAnnotation(text: string, kind: AnnotationKind): Promise<void>
   setAnnStatus(a: Annotation, status: 'open' | 'done'): Promise<void>
   /** 编辑批注内容（引用锚点不变） */
   editAnnotation(a: Annotation, text: string): Promise<void>
@@ -647,8 +647,14 @@ export const useStore = create<State>((set, get) => ({
     const s = get()
     const dirty = d !== s.activeDoc?.content
     const cur = s.tabs.find((t) => t.id === s.activeTabId)
-    if (cur) set({ tabs: s.tabs.map((t) => (t.id === cur.id ? { ...t, draft: d, dirty } : t)) })
-    set({ draft: d, dirty })
+    // tabs 与 draft 必须在同一次 set 中更新：分两次会让订阅方在中间态
+    // 读到「旧 draft + 新 tabs」，编辑器订阅据此误判外部变更而整体重渲染，
+    // 导致输入/退格后光标重置到文首（v0.4.3 修复）。
+    set(
+      cur
+        ? { tabs: s.tabs.map((t) => (t.id === cur.id ? { ...t, draft: d, dirty } : t)), draft: d, dirty }
+        : { draft: d, dirty }
+    )
     // 自动保存：每次变更重置计时器，静止 delay 后落盘
     if (autoSaveTimer) {
       clearTimeout(autoSaveTimer)
@@ -716,7 +722,7 @@ export const useStore = create<State>((set, get) => ({
     set({ composeQuote: q, annPanelOpen: q ? true : get().annPanelOpen })
   },
 
-  async createAnnotation(text) {
+  async createAnnotation(text, kind) {
     const s = get()
     const q = s.composeQuote
     if (!s.activeProjectId || !s.activeDoc || !q) return
@@ -727,13 +733,14 @@ export const useStore = create<State>((set, get) => ({
         prefix: q.prefix,
         suffix: q.suffix,
         text,
+        kind,
         status: 'open'
       })
       set({ composeQuote: null })
       await get().loadAnnotations()
-      get().toast('ok', '批注已保存')
+      get().toast('ok', kind === 'tag' ? '标签已保存' : kind === 'note' ? '笔记已保存' : '批注已保存')
     } catch (err) {
-      get().toast('err', `批注保存失败：${err}`)
+      get().toast('err', `保存失败：${err}`)
     }
   },
 

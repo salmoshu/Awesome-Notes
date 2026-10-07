@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Vditor from 'vditor'
 import hljs from 'highlight.js/lib/common'
 import 'vditor/dist/index.css'
@@ -7,6 +7,7 @@ import 'vditor/dist/js/i18n/zh_CN.js'
 import luteUrl from 'vditor/dist/js/lute/lute.min.js?url'
 import type { Annotation } from '@shared/types'
 import { useStore, rawBaseFor, origProjectId } from '../store'
+import { systemPrefersDark } from '../utils/settings'
 import { collectText, findAnnotationRange, setTextHighlight } from '../utils/textRanges'
 
 interface Props {
@@ -73,10 +74,48 @@ function loadLute(): Promise<void> {
   return luteReady
 }
 
+/**
+ * 软换行连写：源码在段内手动换行（如长列表项折行）时，Lute 渲染出的 "\n"
+ * 在 white-space:normal 下显示为空格，中文语境观感错误。渲染方向把 "\n" 文本
+ * 包进隐藏的占位 span（视觉上直接连写），序列化方向再还原为 "\n"，
+ * 保证源码的换行结构在保存/撤销/复制时不丢失。
+ * code/textarea 等预格式内容里的换行不动。
+ */
+const SOFTBREAK_SPAN = '<span data-an-softbreak>\n</span>'
+const SOFTBREAK_SPAN_RE = /<span data-an-softbreak(?:="")?>([^<]*)<\/span>/g
+
+/** 序列化/Spin 前：占位 span 还原为 "\n" */
+function unwrapSoftBreaks(html: string): string {
+  return html.includes('data-an-softbreak') ? html.replace(SOFTBREAK_SPAN_RE, '$1') : html
+}
+
+function wrapSoftBreaks(html: string): string {
+  if (!html.includes('\n')) return html
+  const parts = html.split(/(<[^>]*>)/)
+  let preDepth = 0
+  let out = ''
+  for (const part of parts) {
+    if (part.startsWith('<')) {
+      const name = part.slice(1).replace(/\/$/, '').toLowerCase()
+      if (name.startsWith('pre') || name.startsWith('textarea') || name.startsWith('script')) {
+        preDepth = part[1] === '/' ? Math.max(0, preDepth - 1) : preDepth + 1
+      }
+      out += part
+    } else if (preDepth === 0 && part.includes('\n')) {
+      out += part.replace(/\n/g, SOFTBREAK_SPAN)
+    } else {
+      out += part
+    }
+  }
+  return out
+}
+
 /** 阅读模式：保留渲染排版，正文始终可编辑，双击仅执行正常的文字选择。 */
 export default function MarkdownView({ annotations, onSelectAnn }: Props) {
   const ref = useRef<HTMLDivElement>(null)
-  const theme = useStore((state) => state.settings.theme)
+  const themeSetting = useStore((state) => state.settings.theme)
+  const [sysDark, setSysDark] = useState(systemPrefersDark())
+  const theme = themeSetting === 'dark' || (themeSetting === 'system' && sysDark) ? 'dark' : 'light'
   const docPath = useStore((state) => state.activeDoc?.path)
   const projectId = useStore((state) => state.activeProjectId)
   const tabId = useStore((state) => state.activeTabId)
@@ -85,6 +124,14 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
   const refreshRef = useRef<(() => void) | null>(null)
   annotationsRef.current = annotations
   selectRef.current = onSelectAnn
+
+  // 跟随系统时，系统主题切换需重建编辑器配色
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => setSysDark(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   useEffect(() => { refreshRef.current?.() }, [annotations])
 
@@ -97,6 +144,7 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
     let rawBase = ''
     let lastValue = ''
     let lastDraft = useStore.getState().draft
+    let syncingFromEditor = false
     let frame = 0
     let unsubscribe: (() => void) | undefined
     let annotationRanges: { annotation: Annotation; range: Range }[] = []
@@ -121,6 +169,9 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
     const refresh = (): void => {
       const prose = container.querySelector<HTMLElement>('.prose')
       if (!prose || disposed) return
+      // 块悬浮工具栏（上移/下移/删除）左移到正文左侧空白区所需的位置变量
+      const wysiwyg = container.querySelector<HTMLElement>('.vditor-wysiwyg')
+      wysiwyg?.style.setProperty('--prose-left', `${prose.offsetLeft}px`)
       rewriteImages()
       prose.querySelectorAll<HTMLElement>('.vditor-wysiwyg__preview code:not([data-highlighted])').forEach((code) => {
         const language = [...code.classList].find((name) => name.startsWith('language-'))?.slice(9)
@@ -140,6 +191,9 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(refresh)
     })
+    // 侧栏/批注面板开合、窗口缩放都会改版式；--prose-left 需同步刷新
+    const resizeObserver = new ResizeObserver(() => refresh())
+    resizeObserver.observe(container)
 
     const syncDraft = (): void => {
       const state = useStore.getState()
@@ -150,7 +204,14 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
       if (value === lastValue) return
       lastValue = value
       lastDraft = value
-      state.setDraft(value)
+      // 标记「本次 store 变更来自编辑器自身」：订阅回调据此跳过回写，
+      // 避免任何中间态触发 setValue 整体重渲染（光标会被重置到文首）。
+      syncingFromEditor = true
+      try {
+        state.setDraft(value)
+      } finally {
+        syncingFromEditor = false
+      }
     }
     const onInput = (event: Event): void => {
       if (!(event as InputEvent).isComposing) syncDraft()
@@ -206,9 +267,11 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
           const lute = editor.vditor.lute
           const serialize = lute.VditorDOM2Md.bind(lute)
           lute.VditorDOM2Md = (html: string): string => {
-            if (!html.includes('data-an-orig-src=')) return serialize(html)
+            // 软换行占位 span 还原为 "\n"（见 wrapSoftBreaks），源码换行结构不丢失
+            const src = unwrapSoftBreaks(html)
+            if (!src.includes('data-an-orig-src=')) return serialize(src)
             const template = document.createElement('template')
-            template.innerHTML = html
+            template.innerHTML = src
             template.content.querySelectorAll<HTMLImageElement>('img[data-an-orig-src]').forEach((image) => {
               if (image.getAttribute('src') === image.dataset.anDisplaySrc) {
                 image.setAttribute('src', image.dataset.anOrigSrc!)
@@ -218,9 +281,18 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
             })
             return serialize(template.innerHTML)
           }
+          // 整篇渲染方向（setValue/初始渲染/粘贴）：软换行 "\n" 包进隐藏占位 span
+          const renderDom = lute.Md2VditorDOM.bind(lute)
+          lute.Md2VditorDOM = (markdown: string): string => wrapSoftBreaks(renderDom(markdown))
+          // 块级重渲染方向（输入后的 DOM→DOM spin）：先还原占位再重新包裹
+          const spin = lute.SpinVditorDOM.bind(lute)
+          lute.SpinVditorDOM = (html: string): string => wrapSoftBreaks(spin(unwrapSoftBreaks(html)))
           const prose = container.querySelector<HTMLElement>('.vditor-wysiwyg > .vditor-reset')
           prose?.classList.add('prose')
           prose?.setAttribute('aria-label', '阅读模式编辑器')
+          lastValue = editor.getValue()
+          // 初次渲染发生在上面的补丁安装之前，重渲染一次让软换行占位生效
+          editor.setValue(lastValue, true)
           lastValue = editor.getValue()
           ready = true
           observer.observe(container, { childList: true, characterData: true, subtree: true })
@@ -230,7 +302,14 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
           container.addEventListener('keydown', onKeyDown)
           container.addEventListener('click', onClick, true)
           unsubscribe = useStore.subscribe((state) => {
-            if (disposed || !editor || state.activeTabId !== tabId || state.activeProjectId !== projectId || state.draft === lastDraft) return
+            if (
+              disposed ||
+              !editor ||
+              syncingFromEditor ||
+              state.activeTabId !== tabId ||
+              state.activeProjectId !== projectId ||
+              state.draft === lastDraft
+            ) return
             lastDraft = state.draft
             editor.setValue(state.draft, true)
             lastValue = editor.getValue()
@@ -256,6 +335,7 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
       refreshRef.current = null
       unsubscribe?.()
       observer.disconnect()
+      resizeObserver.disconnect()
       cancelAnimationFrame(frame)
       container.removeEventListener('input', onInput)
       container.removeEventListener('compositionend', syncDraft)

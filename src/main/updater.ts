@@ -89,9 +89,10 @@ export class UpdateService {
     await autoUpdater.downloadUpdate()
   }
 
-  /** isSilent=false：NSIS 进度条窗口；isForceRunAfter=true：装完自动重启 */
+  /** 静默安装（/S）：沿用上次的安装目录与安装方式（NSIS 注册表记忆），跳过安装选项页；
+   *  isForceRunAfter=true：装完自动重启并直达新版本，无需人工点「完成」。 */
   quitAndInstall(): void {
-    autoUpdater.quitAndInstall(false, true)
+    autoUpdater.quitAndInstall(true, true)
   }
 
   private wireEvents(): void {

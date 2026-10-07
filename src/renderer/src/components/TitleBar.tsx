@@ -34,7 +34,7 @@ export default function TitleBar() {
         <button
           className={`tb-set ${annPanelOpen && activeDoc ? 'on' : ''}`}
           onClick={toggleAnnPanel}
-          title={`右侧边栏（目录 / 批注）${activeDoc ? '' : '：打开文档后可用'}`}
+          title={`右侧边栏（目录 / 标注）${activeDoc ? '' : '：打开文档后可用'}`}
         >
           ▤
         </button>
