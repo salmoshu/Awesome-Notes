@@ -1,4 +1,6 @@
 // 应用设置：localStorage 持久化（Web 预览模式同样可用），变更即生效
+import { DOC_FORMAT_GROUPS } from '@shared/types'
+
 export interface AppSettings {
   /** 主题：浅色 / 深色 / 跟随系统 */
   theme: 'light' | 'dark' | 'system'
@@ -44,6 +46,13 @@ function normalizeWidth(w: unknown): number {
   return DEFAULT_SETTINGS.contentWidth
 }
 
+/** 清洗格式组勾选：剔除已下架的组（如 v0.4.5 移除的 json/yaml），清空则回默认 */
+function normalizeFormats(raw: unknown): string[] {
+  const valid = new Set(DOC_FORMAT_GROUPS.map((g) => g.key))
+  const keys = Array.isArray(raw) ? raw.filter((k): k is string => typeof k === 'string' && valid.has(k)) : []
+  return keys.length > 0 ? keys : DEFAULT_SETTINGS.docFormats
+}
+
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
@@ -57,7 +66,8 @@ export function loadSettings(): AppSettings {
         ...saved,
         theme: saved.theme === 'dark' || saved.theme === 'system' ? saved.theme : 'light',
         contentWidth: normalizeWidth(saved.contentWidth),
-        defaultMode: saved.defaultMode === 'source' || saved.defaultMode === 'edit' ? 'source' : 'read'
+        defaultMode: saved.defaultMode === 'source' || saved.defaultMode === 'edit' ? 'source' : 'read',
+        docFormats: normalizeFormats(saved.docFormats)
       }
     }
   } catch {

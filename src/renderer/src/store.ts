@@ -83,6 +83,8 @@ interface State {
   activeTabId: string | null
   activeDoc: DocContent | null
   docLoading: boolean
+  /** 文档打开失败的原因（呈现错误卡片与关闭按钮；null = 无错误） */
+  docError: string | null
   mode: ViewMode
   draft: string
   dirty: boolean
@@ -214,6 +216,7 @@ export const useStore = create<State>((set, get) => ({
   activeTabId: null,
   activeDoc: null,
   docLoading: false,
+  docError: null,
   mode: 'read',
   draft: '',
   dirty: false,
@@ -466,7 +469,7 @@ export const useStore = create<State>((set, get) => ({
       const activeId = get().activeProjectId
       set({ remotes, projects: get().projects.filter((x) => x.id !== id) })
       if (activeId === id) {
-        set({ activeProjectId: null, tree: null, tabs: [], activeTabId: null, activeDoc: null, annotations: [] })
+        set({ activeProjectId: null, tree: null, tabs: [], activeTabId: null, activeDoc: null, docError: null, annotations: [] })
         const first = get().projects[0]
         if (first) await get().selectProject(first.id)
       }
@@ -481,7 +484,7 @@ export const useStore = create<State>((set, get) => ({
       const { activeProjectId } = get()
       set({ localProjects, projects: mergeProjects(localProjects, get().remotes, get().projects) })
       if (activeProjectId === id) {
-        set({ activeProjectId: null, tree: null, tabs: [], activeTabId: null, activeDoc: null, annotations: [] })
+        set({ activeProjectId: null, tree: null, tabs: [], activeTabId: null, activeDoc: null, docError: null, annotations: [] })
         const first = get().projects[0]
         if (first) await get().selectProject(first.id)
       }
@@ -549,7 +552,7 @@ export const useStore = create<State>((set, get) => ({
     const projectId = s.activeProjectId
     if (!projectId) return
     const pinned = opts?.pinned === true
-    const mode = ['md', 'markdown', 'mdown', 'mkd', 'txt'].includes((path.split('.').pop() ?? '').toLowerCase())
+    const mode = ['md', 'markdown', 'mdown', 'mkd', 'txt', 'html', 'htm'].includes((path.split('.').pop() ?? '').toLowerCase())
       ? s.settings.defaultMode : 'read'
 
     // 已开同路径标签：激活（双击则顺带固定）
@@ -627,7 +630,7 @@ export const useStore = create<State>((set, get) => ({
     if (next) {
       void loadTabInto(next, set, get)
     } else {
-      set({ activeDoc: null, draft: '', dirty: false, annotations: [], composeQuote: null })
+      set({ activeDoc: null, docError: null, draft: '', dirty: false, annotations: [], composeQuote: null })
     }
   },
 
@@ -761,7 +764,7 @@ export const useStore = create<State>((set, get) => ({
         if (closedActive) {
           const next = tabs[0]
           if (next) await get().activateTab(next.id)
-          else set({ activeTabId: null, activeDoc: null, draft: '', dirty: false, annotations: [] })
+          else set({ activeTabId: null, activeDoc: null, docError: null, draft: '', dirty: false, annotations: [] })
         }
       } else if (s.activeDoc && under(s.activeDoc.path)) {
         await get().loadAnnotations()
@@ -868,6 +871,7 @@ async function loadTabInto(
     activeTabId: tab.id,
     docLoading: !cached,
     activeDoc: cached ?? null,
+    docError: null,
     composeQuote: null,
     mode: tab.mode,
     draft: tab.dirty ? tab.draft : (cached?.content ?? tab.draft),
@@ -905,8 +909,8 @@ async function loadTabInto(
     }
   } catch (err) {
     if (!cached) {
-      set({ docLoading: false })
-      get().toast('err', `文档读取失败：${err}`)
+      // 打开失败：保留标签，错误在正文区呈现（含关闭按钮），不再只弹一条 toast
+      set({ docLoading: false, docError: String(err instanceof Error ? err.message : err) })
     }
     // 有缓存时后台校验失败保持现状（如远程刚断开）
   }

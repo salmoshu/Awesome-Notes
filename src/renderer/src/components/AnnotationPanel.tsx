@@ -60,7 +60,31 @@ function scrollToHeading(entry: TocEntry): Element | null {
   return el
 }
 
-/** 编辑模式：把源码编辑器滚动到标题行并选中该行（textarea 内的定位跳转） */
+/** 编辑模式：编辑器随内容自增高（无内部滚动），按行号滚动外层 .reader-body */
+function scrollSourceLine(textarea: HTMLTextAreaElement, line: number): void {
+  const body = textarea.closest<HTMLElement>('.reader-body')
+  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
+  const padTop = Number.parseFloat(getComputedStyle(textarea).paddingTop) || 0
+  if (body) {
+    const taTop = textarea.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop
+    body.scrollTop = Math.max(0, taTop + padTop + line * lineHeight - body.clientHeight / 3)
+  } else {
+    textarea.scrollTop = Math.max(0, line * lineHeight - textarea.clientHeight / 3)
+  }
+}
+
+/** 编辑模式：源码文本起点在 .reader-body 内容坐标中的偏移 + 行高 */
+function sourceTextOrigin(textarea: HTMLTextAreaElement): { top: number; lineHeight: number } {
+  const body = textarea.closest<HTMLElement>('.reader-body')
+  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
+  const padTop = Number.parseFloat(getComputedStyle(textarea).paddingTop) || 0
+  const top = body
+    ? textarea.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop + padTop
+    : textarea.scrollTop + padTop
+  return { top, lineHeight }
+}
+
+/** 编辑模式：把源码编辑器滚动到标题行并选中该行（滚动在外层 .reader-body） */
 function scrollToSourceHeading(entry: TocEntry): boolean {
   const textarea = document.querySelector<HTMLTextAreaElement>('.editor-plain')
   if (!textarea || entry.line === undefined) return false
@@ -70,8 +94,7 @@ function scrollToSourceHeading(entry: TocEntry): boolean {
   const end = start + (lines[entry.line]?.length ?? 0)
   textarea.focus()
   textarea.setSelectionRange(start, end)
-  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
-  textarea.scrollTop = Math.max(0, entry.line * lineHeight - textarea.clientHeight / 3)
+  scrollSourceLine(textarea, entry.line)
   return true
 }
 
@@ -83,10 +106,8 @@ function locateInSource(quote: string): boolean {
   if (idx < 0) return false
   textarea.focus()
   textarea.setSelectionRange(idx, idx + quote.length)
-  const before = textarea.value.slice(0, idx)
-  const line = before.split('\n').length - 1
-  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
-  textarea.scrollTop = Math.max(0, line * lineHeight - textarea.clientHeight / 3)
+  const line = textarea.value.slice(0, idx).split('\n').length - 1
+  scrollSourceLine(textarea, line)
   return true
 }
 
@@ -120,8 +141,9 @@ function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: stri
       if (mode === 'source') {
         const textarea = document.querySelector<HTMLTextAreaElement>('.editor-plain')
         if (!textarea) return
-        const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
-        const cur = Math.floor((textarea.scrollTop + textarea.clientHeight / 2) / lineHeight)
+        // 自增高编辑器：滚动量在 .reader-body 上，换算回源码行号
+        const { top: textTop, lineHeight } = sourceTextOrigin(textarea)
+        const cur = Math.floor((body.scrollTop + body.clientHeight / 2 - textTop) / lineHeight)
         let current = ''
         for (const h of toc) {
           if (h.line !== undefined && h.line <= cur) current = h.text
@@ -138,10 +160,9 @@ function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: stri
       }
       setActiveText(current)
     }
-    const target = mode === 'source' ? document.querySelector('.editor-plain') : body
-    target?.addEventListener('scroll', onScroll, { passive: true })
+    body.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
-    return () => target?.removeEventListener('scroll', onScroll)
+    return () => body.removeEventListener('scroll', onScroll)
   }, [toc, mode])
 
   if (toc.length === 0) {

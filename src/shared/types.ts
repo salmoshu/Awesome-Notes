@@ -103,7 +103,9 @@ export interface Annotation {
   updatedAt: string
 }
 
-/** 可配置的文档格式组（设置页勾选，决定文件树/搜索/统计扫描哪些扩展名） */
+/** 可配置的文档格式组（设置页勾选，决定文件树/搜索/统计扫描哪些扩展名）。
+ *  v0.4.5 起不再包含 json/yaml：这类文件不适合「阅读模式」渲染，改为经文档内
+ *  链接以原始文本打开（见 MarkdownView 的 LINKABLE_EXTS）。 */
 export interface DocFormatGroup {
   key: string
   label: string
@@ -114,8 +116,6 @@ export const DOC_FORMAT_GROUPS: DocFormatGroup[] = [
   { key: 'md', label: 'Markdown', exts: ['.md', '.markdown', '.mdown', '.mkd'] },
   { key: 'html', label: 'HTML', exts: ['.html', '.htm'] },
   { key: 'txt', label: '纯文本', exts: ['.txt'] },
-  { key: 'json', label: 'JSON', exts: ['.json'] },
-  { key: 'yaml', label: 'YAML', exts: ['.yaml', '.yml'] },
   { key: 'xml', label: 'XML', exts: ['.xml'] },
   { key: 'csv', label: 'CSV', exts: ['.csv'] },
   { key: 'log', label: '日志', exts: ['.log'] }

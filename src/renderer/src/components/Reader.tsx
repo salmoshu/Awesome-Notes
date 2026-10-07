@@ -26,6 +26,7 @@ export default function Reader() {
   const {
     activeDoc,
     docLoading,
+    docError,
     mode,
     setMode,
     pendingLocate,
@@ -37,7 +38,8 @@ export default function Reader() {
     toggleAnnPanel,
     setComposeQuote,
     activeProjectId,
-    activeTabId
+    activeTabId,
+    closeTab
   } = useStore()
 
   const proseWrapRef = useRef<HTMLDivElement>(null)
@@ -151,15 +153,26 @@ export default function Reader() {
 
 
   if (!activeDoc) {
+    // 标签栏始终保留：打开失败的文档不再「吃掉」整个阅读区，错误卡片提供关闭出口
     return (
-      <div className="reader-empty">
-        {docLoading ? (
-          <div className="re-hint">读取中…</div>
-        ) : (
-          <>
+      <div className="reader">
+        <TabsBar />
+        <div className="reader-empty">
+          {docLoading ? (
+            <div className="re-hint">读取中…</div>
+          ) : docError && activeTabId ? (
+            <div className="re-error">
+              <div className="re-error-icon">⚠</div>
+              <div className="re-error-title">文档打开失败</div>
+              <div className="re-error-desc">{docError}</div>
+              <button className="btn-primary sm" onClick={() => closeTab(activeTabId)}>
+                关闭标签页
+              </button>
+            </div>
+          ) : (
             <Logo size={72} />
-          </>
-        )}
+          )}
+        </div>
       </div>
     )
   }
@@ -170,12 +183,12 @@ export default function Reader() {
   return (
     <div className="reader">
       <TabsBar>
-        {(isMd || activeDoc.ext === 'txt') && (
+        {(isMd || activeDoc.ext === 'txt' || isHtml) && (
           <div className="seg icon-seg">
             <button
               className={mode === 'read' ? 'active' : ''}
               onClick={() => setMode('read')}
-              title="阅读模式（可直接编辑）"
+              title={isHtml ? '阅读模式（渲染网页）' : '阅读模式（可直接编辑）'}
               aria-label="阅读模式"
               aria-pressed={mode === 'read'}
             >
@@ -184,7 +197,7 @@ export default function Reader() {
             <button
               className={mode === 'source' ? 'active' : ''}
               onClick={() => setMode('source')}
-              title="编辑模式（编辑源码）"
+              title={isHtml ? '编辑模式（编辑 HTML 源码）' : '编辑模式（编辑源码）'}
               aria-label="编辑模式"
               aria-pressed={mode === 'source'}
             >
@@ -253,7 +266,7 @@ export default function Reader() {
           <pre className="txt-view">{activeDoc.content}</pre>
         )}
 
-        {pop && isMd && (
+        {pop && (mode === 'read' ? isMd : isMd || activeDoc.ext === 'txt' || isHtml) && (
           <button
             className={`ann-pop ${pop.below ? 'below' : ''}`}
             style={{ left: pop.x, top: pop.y }}

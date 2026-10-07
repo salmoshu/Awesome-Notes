@@ -32,10 +32,23 @@ export function resolveDocLink(fromPath: string, href: string): string | null {
   return result.join('/')
 }
 
+/** 正文链接可打开的扩展名：文档 + 图片 + 尽可能全的文本类文件
+ *  （json/yaml/源代码等以原始文本呈现；二进制媒体不在此列）。 */
 const LINKABLE_EXTS = [
-  '.md', '.markdown', '.mdown', '.mkd', '.html', '.htm', '.txt',
+  // 文档
+  '.md', '.markdown', '.mdown', '.mkd', '.mdx', '.rst', '.html', '.htm', '.txt',
+  // 图片
   '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico',
-  '.json', '.yaml', '.yml', '.xml', '.log', '.csv'
+  // 数据 / 配置（文本）
+  '.json', '.jsonl', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env',
+  '.xml', '.log', '.csv', '.tsv', '.sql', '.graphql', '.gql', '.proto', '.properties',
+  // 常见源代码（文本）
+  '.py', '.pyi', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.astro',
+  '.go', '.rs', '.java', '.kt', '.kts', '.swift', '.dart', '.scala', '.clj', '.ex', '.exs',
+  '.c', '.h', '.cpp', '.hpp', '.cc', '.hh', '.cs', '.rb', '.php', '.lua', '.pl', '.r',
+  '.css', '.scss', '.sass', '.less', '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1',
+  // 无扩展名的常见点文件
+  '.gitignore', '.gitattributes', '.editorconfig'
 ]
 
 function openLink(href: string): void {
@@ -54,7 +67,7 @@ function openLink(href: string): void {
   if (!resolved) {
     state.toast('info', `无法解析链接目标：${href}（超出项目范围）`)
   } else if (!LINKABLE_EXTS.some((ext) => resolved.toLowerCase().endsWith(ext))) {
-    state.toast('info', '暂不支持预览该类型文件（支持文档 / 图片 / 常见文本）')
+    state.toast('info', '暂不支持预览该类型文件（文档 / 图片 / 常见文本文件可直接打开）')
   } else void state.openDoc(resolved)
 }
 
