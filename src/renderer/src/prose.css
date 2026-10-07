@@ -61,20 +61,28 @@
 }
 .prose pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
 
+/* 进入代码块 / HTML 块编辑时，Vditor 会同时显示可编辑源码 pre 与渲染预览 pre，
+   两块等高堆叠在纸张正文里表现为一块多余的同高空白区。编辑态（源码 pre 带
+   display:block 内联样式）隐藏预览副本，只留可编辑源码；失焦后自动还原。 */
+.markdown-editor .vditor-wysiwyg__block:has(> pre:not(.vditor-wysiwyg__preview)[style*='block'])
+  > .vditor-wysiwyg__preview { display: none; }
+
 .prose table {
   border-collapse: collapse; width: 100%; margin: 16px 0;
   font-size: 13.5px; line-height: 1.7; display: block; overflow-x: auto;
 }
-/* 覆盖 Vditor 内置表格的硬编码浅色（#fafbfc 行底 / #dfe2e5 边框）：
-   深色模式下这些颜色会显得刺眼发白，统一走主题变量 */
+/* 覆盖 Vditor 内置表格的硬编码浅色（#fafbfc 行底 / #fff 斑马纹 / #dfe2e5 边框）：
+   深色模式下这些颜色会显得刺眼发白，统一走主题变量。
+   注意斑马纹要压过 vditor 的 `.vditor-reset table tbody tr:nth-child(2n)`
+   （specificity (0,2,3)），行底规则必须带 tbody 且至少三层类名。 */
 .vditor-reset.prose table tr { background-color: transparent; border-top: 1px solid var(--line); }
 .vditor-reset.prose table td, .vditor-reset.prose table th { border: 1px solid var(--line); }
 .prose th, .prose td { border: 1px solid var(--line); padding: 7px 11px; text-align: left; vertical-align: top; }
 .prose th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
-.prose tr:nth-child(even) td { background: rgba(127, 127, 127, 0.05); }
+.vditor-reset.prose table tbody tr:nth-child(2n) { background-color: rgba(127, 127, 127, 0.05); }
 /* 深色表格：表头与斑马纹改中性暗色，避免亮块 */
 [data-theme='dark'] .vditor-reset.prose table th { background: rgba(127, 127, 127, 0.16); }
-[data-theme='dark'] .vditor-reset.prose table tr:nth-child(even) td { background: rgba(127, 127, 127, 0.07); }
+[data-theme='dark'] .vditor-reset.prose table tbody tr:nth-child(2n) { background-color: rgba(127, 127, 127, 0.07); }
 
 .prose img { max-width: 100%; border-radius: 8px; }
 .prose hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }

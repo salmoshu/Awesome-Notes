@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -153,4 +154,58 @@ func (s *annotationStore) delete(projectPath, doc, id string) error {
 		}
 	}
 	return os.ErrNotExist
+}
+
+// renameDoc 迁移批注锚点：文档或目录从 from 移动到 to 时，改写批注库中
+// doc 键等于 from 或以其为目录前缀（from/…）的条目，批注跟随文档走。
+func (s *annotationStore) renameDoc(projectPath, from, to string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := s.load(projectPath)
+	if err != nil {
+		return err
+	}
+	moved := false
+	for doc, anns := range f.Docs {
+		var next string
+		if doc == from {
+			next = to
+		} else if strings.HasPrefix(doc, from+"/") {
+			next = to + doc[len(from):]
+		} else {
+			continue
+		}
+		for _, a := range anns {
+			a.Doc = next
+			a.UpdatedAt = time.Now()
+		}
+		f.Docs[next] = anns
+		delete(f.Docs, doc)
+		moved = true
+	}
+	if !moved {
+		return nil
+	}
+	return s.save(projectPath, f)
+}
+
+// removeDoc 删除文档或目录时清理对应批注（doc 键等于或以其为目录前缀）。
+func (s *annotationStore) removeDoc(projectPath, doc string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := s.load(projectPath)
+	if err != nil {
+		return err
+	}
+	removed := false
+	for k := range f.Docs {
+		if k == doc || strings.HasPrefix(k, doc+"/") {
+			delete(f.Docs, k)
+			removed = true
+		}
+	}
+	if !removed {
+		return nil
+	}
+	return s.save(projectPath, f)
 }

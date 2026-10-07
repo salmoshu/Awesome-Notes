@@ -38,6 +38,9 @@ body {
 }
 button { font-family: inherit; cursor: pointer; }
 input, textarea { font-family: inherit; }
+/* body 为 user-select:none（应用窗口不随意选中 UI 文案）；输入框/文本域必须
+   恢复可选，否则源码编辑器里鼠标拖选无效（v0.4.4 修复） */
+input, textarea { user-select: text; }
 
 /* ---- 启动页 ---- */
 .boot {
@@ -178,6 +181,15 @@ input, textarea { font-family: inherit; }
 }
 .tree-dir:hover, .tree-doc:hover { background: var(--sb-hover); }
 .tree-doc.active { background: var(--sb-active); color: var(--sb-active-ink); }
+/* 拖拽移动：目标目录/项目根高亮为放置区 */
+.tree-dir.drag-over {
+  background: var(--sb-active);
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+  color: var(--sb-active-ink);
+}
+.sb-proj-head.drag-over { border-radius: 8px; outline: 1px dashed var(--accent); outline-offset: -2px; }
+.tree-dir[draggable='true'], .tree-doc[draggable='true'] { cursor: grab; }
 /* 屏蔽态：置灰不可交互 */
 .proj-item.blocked, .tree-dir.blocked, .tree-doc.blocked {
   opacity: 0.42; cursor: default; text-decoration: line-through;
@@ -400,6 +412,12 @@ input, textarea { font-family: inherit; }
 }
 .ann-pop:hover { background: var(--accent); }
 .ann-pop.below { transform: translate(-50%, 0); }
+/* 深色主题下 --ink 是浅灰，直接用会得到一个过白的气泡且白字不显眼，
+   改用抬升的深色表面 + 明确描边 */
+[data-theme='dark'] .ann-pop {
+  background: #313a4d; border: 1px solid #46516b;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
 
 /* ---- 批注面板 ---- */
 .ann-panel {
@@ -622,6 +640,22 @@ input, textarea { font-family: inherit; }
 [data-theme='dark'] .reader-body::-webkit-scrollbar-thumb { background: #3a4050; }
 [data-theme='dark'] .btn-save:disabled { background: #2c313d; }
 [data-theme='dark'] .html-view { background: #1a1d24; }
+
+/* ---- 深色主题补充审查（v0.4.4）：批注面板 / 搜索 / 开关等硬编码浅色 ---- */
+/* 批注撰写区与引用块：浅琥珀底在深色下刺眼，改深琥珀 */
+[data-theme='dark'] .ap-compose { background: #2b2416; }
+[data-theme='dark'] .ap-quote { background: #3a301b; color: #fbbf24; }
+[data-theme='dark'] .ap-compose textarea { background: #14161c; color: var(--ink); }
+[data-theme='dark'] .ap-card-quote {
+  background: #2e2a1a; color: #f5d78e; border-left-color: #a8871e;
+}
+/* 状态徽标：浅色底 → 深色底（对齐 ap-kind 的深色处理） */
+[data-theme='dark'] .ap-status.open { background: #3a2c18; color: #fbbf24; }
+[data-theme='dark'] .ap-status.done { background: #143427; color: #4ade80; }
+/* 侧栏搜索命中关键词：亮黄底 → 深琥珀 */
+[data-theme='dark'] .sp-kw { background: #6b5d1f; color: #f5e9c8; }
+/* 开关轨道：浅灰 → 深灰 */
+[data-theme='dark'] .switch { background: #3a4150; }
 
 /* ---- 设置页 ---- */
 /* ---- 设置视图（主体内布局，替代弹框） ---- */

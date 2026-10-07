@@ -144,11 +144,11 @@ export default function SettingsView() {
             <div className="st-row">
               <div className="st-label">主题</div>
               <div className="seg">
-                <button className={settings.theme === 'light' ? 'active' : ''} onClick={() => setSetting('theme', 'light')}>
-                  浅色
-                </button>
                 <button className={settings.theme === 'system' ? 'active' : ''} onClick={() => setSetting('theme', 'system')}>
                   跟随系统
+                </button>
+                <button className={settings.theme === 'light' ? 'active' : ''} onClick={() => setSetting('theme', 'light')}>
+                  浅色
                 </button>
                 <button className={settings.theme === 'dark' ? 'active' : ''} onClick={() => setSetting('theme', 'dark')}>
                   深色

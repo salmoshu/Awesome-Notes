@@ -51,6 +51,7 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/projects/{id}/git/discard", s.auth(s.handleGitDiscard))
 	mux.HandleFunc("POST /api/projects/{id}/git/commit", s.auth(s.handleGitCommit))
 	mux.HandleFunc("POST /api/projects/{id}/git/sync", s.auth(s.handleGitSync))
+	mux.HandleFunc("POST /api/projects/{id}/fs", s.auth(s.handleFsOp))
 	// /raw/{id}/{path...}：项目内文件直读（HTML 文档以真实 URL 嵌入 iframe，
 	// 使相对路径资源与页内脚本可用）。iframe 无法携带请求头，故不走 token 校验，
 	// 但仅限已导入项目内的文件、仅监听 127.0.0.1。

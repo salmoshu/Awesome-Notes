@@ -21,7 +21,8 @@ import (
 )
 
 // version 远端部署校验依据：远端 notesd 版本不一致时重新部署。
-const version = "0.2.0"
+// 0.2.1：新增 /api/projects/{id}/fs 文件操作（move/copy/delete/mkdir/create）。
+const version = "0.2.1"
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:0", "listen address")

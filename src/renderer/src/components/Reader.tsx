@@ -102,6 +102,25 @@ export default function Reader() {
     }
     const wrap = proseWrapRef.current
     if (!wrap) return
+    // 编辑模式：从源码 textarea 的选区取锚点（气泡挂在鼠标位置上方）
+    if (useStore.getState().mode === 'source') {
+      const textarea = wrap.querySelector<HTMLTextAreaElement>('.editor-plain')
+      if (!textarea) return
+      const { selectionStart: s, selectionEnd: en, value } = textarea
+      const quote = value.slice(s, en)
+      if (s === en || !quote.trim()) {
+        setPop(null)
+        return
+      }
+      ;(onMouseUp as unknown as { _anchor?: unknown })._anchor = {
+        quote,
+        prefix: value.slice(Math.max(0, s - 40), s),
+        suffix: value.slice(en, en + 40)
+      }
+      const wrapRect = wrap.getBoundingClientRect()
+      setPop({ x: e.clientX - wrapRect.left, y: e.clientY - wrapRect.top + wrap.scrollTop - 8 })
+      return
+    }
     const prose = wrap.querySelector('.prose') as HTMLElement | null
     if (!prose) return
     const anchor = selectionAnchor(prose)
@@ -234,7 +253,7 @@ export default function Reader() {
           <pre className="txt-view">{activeDoc.content}</pre>
         )}
 
-        {pop && mode === 'read' && isMd && (
+        {pop && isMd && (
           <button
             className={`ann-pop ${pop.below ? 'below' : ''}`}
             style={{ left: pop.x, top: pop.y }}

@@ -20,9 +20,11 @@ function kindOf(a: Annotation): AnnotationKind {
 interface TocEntry {
   level: number
   text: string
+  /** 编辑（原文）模式：标题在源码中的行号（0 起） */
+  line?: number
 }
 
-/** 从已渲染的 .prose 提取标题目录 */
+/** 从已渲染的 .prose 提取标题目录（阅读模式） */
 function buildToc(): TocEntry[] {
   const prose = document.querySelector('.prose')
   if (!prose) return []
@@ -30,6 +32,20 @@ function buildToc(): TocEntry[] {
     level: Number(el.tagName.slice(1)),
     text: (el.textContent ?? '').trim()
   }))
+}
+
+/** 从 Markdown 源码提取标题目录（编辑模式）：标题行 #.. 逐行扫描，
+ *  代码围栏内的 # 不算标题 */
+function buildTocFromSource(src: string): TocEntry[] {
+  const out: TocEntry[] = []
+  let fence = false
+  src.split('\n').forEach((raw, line) => {
+    if (/^\s*(```|~~~)/.test(raw)) fence = !fence
+    if (fence) return
+    const m = /^(#{1,6})\s+(.*)$/.exec(raw)
+    if (m) out.push({ level: m[1].length, text: m[2].trim(), line })
+  })
+  return out
 }
 
 /** 点击目录项时现查标题节点（避免持有被重渲染替换的旧引用），滚动并返回元素 */
@@ -44,12 +60,45 @@ function scrollToHeading(entry: TocEntry): Element | null {
   return el
 }
 
+/** 编辑模式：把源码编辑器滚动到标题行并选中该行（textarea 内的定位跳转） */
+function scrollToSourceHeading(entry: TocEntry): boolean {
+  const textarea = document.querySelector<HTMLTextAreaElement>('.editor-plain')
+  if (!textarea || entry.line === undefined) return false
+  const lines = textarea.value.split('\n')
+  let start = 0
+  for (let i = 0; i < entry.line; i++) start += lines[i].length + 1
+  const end = start + (lines[entry.line]?.length ?? 0)
+  textarea.focus()
+  textarea.setSelectionRange(start, end)
+  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
+  textarea.scrollTop = Math.max(0, entry.line * lineHeight - textarea.clientHeight / 3)
+  return true
+}
+
+/** 编辑模式：在源码中定位批注引用文本，选中并滚动 */
+function locateInSource(quote: string): boolean {
+  const textarea = document.querySelector<HTMLTextAreaElement>('.editor-plain')
+  if (!textarea) return false
+  const idx = textarea.value.indexOf(quote)
+  if (idx < 0) return false
+  textarea.focus()
+  textarea.setSelectionRange(idx, idx + quote.length)
+  const before = textarea.value.slice(0, idx)
+  const line = before.split('\n').length - 1
+  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
+  textarea.scrollTop = Math.max(0, line * lineHeight - textarea.clientHeight / 3)
+  return true
+}
+
 function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: string }) {
+  const draft = useStore((s) => s.draft)
   const [toc, setToc] = useState<TocEntry[]>([])
   const [activeText, setActiveText] = useState('')
 
+  // 阅读模式：文档/模式变化后重建；正文直接编辑或异步初始化后实时更新目录。
+  // （编辑模式由下方源码提取 effect 负责，这里若不跳过，60ms 后会把源码目录清空）
   useEffect(() => {
-    // 文档/模式变化后重建；正文直接编辑或异步初始化后实时更新目录。
+    if (mode === 'source') return
     const t = setTimeout(() => setToc(buildToc()), 60)
     const refresh = (): void => setToc(buildToc())
     window.addEventListener('markdown-rendered', refresh)
@@ -59,11 +108,27 @@ function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: stri
     }
   }, [activeDoc?.path, activeDoc?.content, mode])
 
-  // 滚动时高亮当前所在章节（取视口内最后一个标题）
+  useEffect(() => {
+    if (mode === 'source') setToc(buildTocFromSource(draft))
+  }, [mode, draft, activeDoc?.path])
+
+  // 滚动时高亮当前所在章节（阅读模式取视口内最后一个标题；编辑模式按行号推算）
   useEffect(() => {
     const body = document.querySelector('.reader-body')
     if (!body || toc.length === 0) return
     const onScroll = (): void => {
+      if (mode === 'source') {
+        const textarea = document.querySelector<HTMLTextAreaElement>('.editor-plain')
+        if (!textarea) return
+        const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 24
+        const cur = Math.floor((textarea.scrollTop + textarea.clientHeight / 2) / lineHeight)
+        let current = ''
+        for (const h of toc) {
+          if (h.line !== undefined && h.line <= cur) current = h.text
+        }
+        setActiveText(current)
+        return
+      }
       const headings = document.querySelectorAll('.prose h1,.prose h2,.prose h3,.prose h4,.prose h5,.prose h6')
       const line = body.getBoundingClientRect().top + 80
       let current = ''
@@ -73,10 +138,11 @@ function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: stri
       }
       setActiveText(current)
     }
-    body.addEventListener('scroll', onScroll, { passive: true })
+    const target = mode === 'source' ? document.querySelector('.editor-plain') : body
+    target?.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
-    return () => body.removeEventListener('scroll', onScroll)
-  }, [toc])
+    return () => target?.removeEventListener('scroll', onScroll)
+  }, [toc, mode])
 
   if (toc.length === 0) {
     return <div className="ap-empty">当前文档没有可用的标题目录。</div>
@@ -91,7 +157,8 @@ function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: stri
           style={{ paddingLeft: 8 + (h.level - 1) * 12 }}
           title={h.text}
           onClick={() => {
-            scrollToHeading(h)
+            if (mode === 'source') scrollToSourceHeading(h)
+            else scrollToHeading(h)
             setActiveText(h.text)
           }}
         >
@@ -198,6 +265,16 @@ export default function AnnotationPanel() {
   }
 
   const locate = (a: Annotation) => {
+    // 编辑模式：源码 textarea 内定位引用文本（目录/批注在原文模式同样可用）
+    if (mode === 'source') {
+      if (locateInSource(a.quote)) {
+        setLocating(a.id)
+        setTimeout(() => setLocating(null), 1600)
+      } else {
+        toast('info', '未能在源码中定位引用（文档可能已编辑）')
+      }
+      return
+    }
     const prose = document.querySelector<HTMLElement>('.prose')
     const range = prose && findAnnotationRange(prose, a)
     if (range) {
@@ -315,7 +392,7 @@ export default function AnnotationPanel() {
             <div className="ap-empty">
               本文档暂无标注。
               <br />
-              在阅读模式下选中文字即可添加标签 / 笔记 / 批注。
+              选中正文或源码中的文字即可添加标签 / 笔记 / 批注。
             </div>
           )}
         {annotations.map((a) => (

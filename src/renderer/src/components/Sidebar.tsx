@@ -20,6 +20,19 @@ import {
 /** 目录展开状态（path → open），跨重扫/重进项目保留 */
 const treeOpenState = new Map<string, boolean>()
 
+/** 拖拽中的源节点（HTML5 DnD 事件里不便传结构，用模块级变量交接） */
+let dragNode: DocNode | null = null
+
+/** 校验文件/目录名：非空且不含 Windows 保留字符 */
+function validName(name: string): boolean {
+  return name !== '' && name !== '.' && name !== '..' && !/[\\/:*?"<>|]/.test(name) && !name.startsWith('.')
+}
+
+/** 拼接项目内相对路径（parent 为空表示根） */
+function joinPath(parent: string, name: string): string {
+  return parent ? `${parent}/${name}` : name
+}
+
 type TreeTab = 'docs' | 'search' | 'git'
 
 function extIcon(ext?: string): string {
@@ -52,17 +65,25 @@ function matchFilter(node: DocNode, f: string): boolean {
 interface TreeCtx {
   projectId: string
   onMenu(e: ReactMouseEvent, node: DocNode, exactBlocked: boolean): void
+  /** 拖拽目标高亮的目录路径（null = 无） */
+  dropTarget: string | null
+  /** 拖拽进入目录（含根：target 为 ''） */
+  onDropInto(target: string): void
+  onDragOverDir(target: string): void
+  onDragLeaveDir(): void
 }
 
 function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: TreeCtx }) {
   const { activeDoc, openDoc, filter } = useStore()
   // 默认全部折叠，由用户自行展开；展开状态记入模块级表，重扫不丢
-  const [open, setOpen] = useState(treeOpenState.get(node.path) ?? false)
+  const [, force] = useState(0)
+  const open = treeOpenState.get(node.path) ?? false
   const f = filter.trim().toLowerCase()
   if (!matchFilter(node, f)) return null
 
   const blocked = isBlocked(ctx.projectId, node.path)
   const exactBlocked = isExactBlocked(ctx.projectId, node.path)
+  const dragOver = ctx.dropTarget === node.path
 
   if (node.type === 'doc') {
     const active = activeDoc?.path === node.path
@@ -70,6 +91,16 @@ function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: Tre
       <button
         className={`tree-doc ${active ? 'active' : ''} ${blocked ? 'blocked' : ''}`}
         style={{ paddingLeft: 10 + depth * 14 }}
+        draggable={!blocked}
+        onDragStart={(e) => {
+          dragNode = node
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', node.path)
+        }}
+        onDragEnd={() => {
+          dragNode = null
+          ctx.onDragLeaveDir()
+        }}
         onClick={() => {
           if (blocked) return
           void openDoc(node.path)
@@ -90,12 +121,33 @@ function TreeNode({ node, depth, ctx }: { node: DocNode; depth: number; ctx: Tre
   return (
     <div>
       <button
-        className={`tree-dir ${blocked ? 'blocked' : ''}`}
+        className={`tree-dir ${blocked ? 'blocked' : ''} ${dragOver ? 'drag-over' : ''}`}
         style={{ paddingLeft: 10 + depth * 14 }}
+        draggable={!blocked}
+        onDragStart={(e) => {
+          dragNode = node
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', node.path)
+        }}
+        onDragEnd={() => {
+          dragNode = null
+          ctx.onDragLeaveDir()
+        }}
+        onDragOver={(e) => {
+          if (!dragNode || blocked) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          ctx.onDragOverDir(node.path)
+        }}
+        onDragLeave={() => ctx.onDragLeaveDir()}
+        onDrop={(e) => {
+          e.preventDefault()
+          ctx.onDropInto(node.path)
+        }}
         onClick={() => {
           if (blocked) return
           treeOpenState.set(node.path, !open)
-          setOpen(!open)
+          force((v) => v + 1)
         }}
         onContextMenu={(e) => ctx.onMenu(e, node, exactBlocked)}
       >
@@ -141,6 +193,7 @@ export default function Sidebar() {
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null)
   const [storeRev, setStoreRev] = useState(0) // 别名/屏蔽变更后强制重渲染
   const [connecting, setConnecting] = useState<Set<string>>(new Set()) // 重连中的远程 id
+  const [dropTarget, setDropTarget] = useState<string | null>(null) // 拖拽放置目标（'' = 项目根）
   const bump = () => setStoreRev((v) => v + 1)
 
   const onReconnect = async (remoteId: string) => {
@@ -290,6 +343,100 @@ export default function Sidebar() {
     })
   }
 
+  /** 重命名文件/目录（仅改最后一段名字，保持所在目录不变） */
+  const onRenameNode = async (node: DocNode) => {
+    const next = window.prompt(`重命名「${node.name}」`, node.name)
+    if (next === null) return
+    const name = next.trim()
+    if (name === node.name) return
+    if (!validName(name)) {
+      toast('err', '名称不能为空，且不能包含 \\ / : * ? " < > | 或以 . 开头')
+      return
+    }
+    const parent = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
+    if (await useStore.getState().fsOp('move', { from: node.path, to: joinPath(parent, name) })) {
+      toast('ok', `已重命名为「${name}」`)
+    }
+  }
+
+  /** 复制副本：同名冲突时依次尝试「副本」「副本 2」…（最多 9） */
+  const onCopyNode = async (node: DocNode) => {
+    const dot = node.name.lastIndexOf('.')
+    const base = node.type === 'doc' && dot > 0 ? node.name.slice(0, dot) : node.name
+    const ext = node.type === 'doc' && dot > 0 ? node.name.slice(dot) : ''
+    const parent = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
+    for (let i = 1; i <= 9; i++) {
+      const name = i === 1 ? `${base} 副本${ext}` : `${base} 副本 ${i}${ext}`
+      const ok = await useStore.getState().fsOp('copy', { from: node.path, to: joinPath(parent, name) }, { silent: true })
+      if (ok) {
+        toast('ok', `已复制为「${name}」`)
+        return
+      }
+    }
+    toast('err', '未能创建副本（同名文件过多）')
+  }
+
+  /** 新建 Markdown 文档（dir 为空表示项目根） */
+  const onNewDoc = async (dir: DocNode | null) => {
+    const next = window.prompt('新文档名称', '未命名文档.md')
+    if (next === null) return
+    const name = next.trim()
+    if (!validName(name)) {
+      toast('err', '名称不能为空，且不能包含 \\ / : * ? " < > | 或以 . 开头')
+      return
+    }
+    const to = joinPath(dir?.path ?? '', name)
+    const title = name.replace(/\.(md|markdown|txt)$/i, '')
+    if (await useStore.getState().fsOp('create', { to, content: `# ${title}\n\n` })) {
+      toast('ok', `已创建「${name}」`)
+      void useStore.getState().openDoc(to)
+    }
+  }
+
+  /** 新建文件夹（dir 为空表示项目根） */
+  const onNewDir = async (dir: DocNode | null) => {
+    const next = window.prompt('新文件夹名称', '新建文件夹')
+    if (next === null) return
+    const name = next.trim()
+    if (!validName(name)) {
+      toast('err', '名称不能为空，且不能包含 \\ / : * ? " < > | 或以 . 开头')
+      return
+    }
+    if (await useStore.getState().fsOp('mkdir', { to: joinPath(dir?.path ?? '', name) })) {
+      toast('ok', `已创建文件夹「${name}」`)
+    }
+  }
+
+  const onDeleteNode = async (node: DocNode) => {
+    const tip = node.type === 'dir' ? '目录内的全部内容将一并删除。' : ''
+    if (!window.confirm(`确定删除「${node.name}」？${tip}此操作不可撤销。`)) return
+    if (await useStore.getState().fsOp('delete', { from: node.path })) {
+      toast('ok', `已删除「${node.name}」`)
+    }
+  }
+
+  /** 拖拽移动到目标目录（'' = 项目根）；目录不能移入自身或其子孙 */
+  const onDropInto = async (target: string) => {
+    const node = dragNode
+    dragNode = null
+    setDropTarget(null)
+    if (!node || !active) return
+    if (target === node.path || target.startsWith(node.path + '/')) {
+      toast('info', '不能移动到自身或其子目录内')
+      return
+    }
+    const parent = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
+    if (parent === target) {
+      toast('info', '已在该目录内')
+      return
+    }
+    const to = joinPath(target, node.name)
+    if (await useStore.getState().fsOp('move', { from: node.path, to })) {
+      toast('ok', `已移动「${node.name}」到 ${target === '' ? '项目根目录' : `「${target}」`}`)
+      if (target !== '') treeOpenState.set(target, true)
+    }
+  }
+
   const treeMenu = (e: ReactMouseEvent, node: DocNode, exactBlocked: boolean): void => {
     e.preventDefault()
     if (!active) return
@@ -301,10 +448,18 @@ export default function Sidebar() {
         label: '打开文档',
         onClick: () => void useStore.getState().openDoc(node.path)
       })
+      items.push({ key: 'rename', label: '重命名…', onClick: () => void onRenameNode(node) })
+      items.push({ key: 'copy', label: '复制（副本）', onClick: () => void onCopyNode(node) })
+    } else {
+      items.push({ key: 'newdoc', label: '新建文档…', onClick: () => void onNewDoc(node) })
+      items.push({ key: 'newdir', label: '新建文件夹…', onClick: () => void onNewDir(node) })
+      items.push({ key: 'rename', label: '重命名…', separatorBefore: true, onClick: () => void onRenameNode(node) })
+      items.push({ key: 'copy', label: '复制（副本）', onClick: () => void onCopyNode(node) })
     }
     items.push({
       key: 'reldoc',
       label: '复制相对路径',
+      separatorBefore: node.type === 'doc',
       onClick: () => {
         navigator.clipboard.writeText(node.path)
         toast('ok', '相对路径已复制')
@@ -319,10 +474,16 @@ export default function Sidebar() {
       }
     })
     items.push({
+      key: 'delete',
+      label: '删除…',
+      danger: true,
+      separatorBefore: true,
+      onClick: () => void onDeleteNode(node)
+    })
+    items.push({
       key: 'block',
       label: exactBlocked ? '取消屏蔽' : '屏蔽',
       danger: !exactBlocked,
-      separatorBefore: true,
       onClick: () => {
         if (exactBlocked) {
           unblockPath(active.id, node.path)
@@ -437,11 +598,25 @@ export default function Sidebar() {
 
       {active && (
         <>
-          <div className="sb-proj-head">
+          <div
+            className={`sb-proj-head ${dropTarget === '' ? 'drag-over' : ''}`}
+            onDragOver={(e) => {
+              if (!dragNode) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              setDropTarget('')
+            }}
+            onDragLeave={() => setDropTarget(null)}
+            onDrop={(e) => {
+              e.preventDefault()
+              void onDropInto('')
+            }}
+          >
             <div className="sb-proj-name" title={active.path}>
               {displayName(active)}
             </div>
             <div className="sb-proj-ops">
+              <button onClick={() => void onNewDoc(null)} title="新建文档（项目根）">＋</button>
               <button onClick={() => void rescan()} title="重新扫描文档">⟳</button>
               <button onClick={() => void onRemove(active)} title="从列表移除">✕</button>
             </div>
@@ -486,7 +661,14 @@ export default function Sidebar() {
                       key={c.path}
                       node={c}
                       depth={0}
-                      ctx={{ projectId: active.id, onMenu: treeMenu }}
+                      ctx={{
+                        projectId: active.id,
+                        onMenu: treeMenu,
+                        dropTarget,
+                        onDropInto: (t) => void onDropInto(t),
+                        onDragOverDir: (t) => setDropTarget((cur) => (cur === t ? cur : t)),
+                        onDragLeaveDir: () => setDropTarget(null)
+                      }}
                     />
                   ))}
               </div>

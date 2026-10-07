@@ -76,9 +76,9 @@ function loadLute(): Promise<void> {
 
 /**
  * 软换行连写：源码在段内手动换行（如长列表项折行）时，Lute 渲染出的 "\n"
- * 在 white-space:normal 下显示为空格，中文语境观感错误。渲染方向把 "\n" 文本
- * 包进隐藏的占位 span（视觉上直接连写），序列化方向再还原为 "\n"，
- * 保证源码的换行结构在保存/撤销/复制时不丢失。
+ * 在 white-space:normal 下显示为空格，中文语境观感错误。渲染方向把与 CJK
+ * 相邻的 "\n" 包进隐藏的占位 span（视觉上直接连写），西文之间保留折叠空格；
+ * 序列化方向再还原为 "\n"，保证源码的换行结构在保存/撤销/复制时不丢失。
  * code/textarea 等预格式内容里的换行不动。
  */
 const SOFTBREAK_SPAN = '<span data-an-softbreak>\n</span>'
@@ -89,6 +89,31 @@ function unwrapSoftBreaks(html: string): string {
   return html.includes('data-an-softbreak') ? html.replace(SOFTBREAK_SPAN_RE, '$1') : html
 }
 
+/** 提取标签名（开闭都返回纯名字，如 </pre> → pre）。 */
+function tagName(part: string): string {
+  const m = /^<\/?\s*([a-zA-Z][a-zA-Z0-9:-]*)/.exec(part)
+  return m ? m[1].toLowerCase() : ''
+}
+
+const PRELIKE = new Set(['pre', 'textarea', 'script'])
+/** CJK 及全角标点：与中文相邻的软换行直接连写，不加空格 */
+const CJK_CHAR = /[\u2e80-\u9fff\uf900-\ufaff\ufe30-\ufe4f\uff00-\uffef\u3000-\u303f]/
+
+/**
+ * 文本片段内的软换行逐个判定：换行两侧任一侧是 CJK（含全角标点）则包进
+ * 隐藏占位 span（视觉连写）；两侧都是西文时保留 "\n"，由 white-space
+ * 折叠成一个空格，避免英文单词被硬拼在一起。
+ */
+function joinSoftBreaks(part: string): string {
+  return part.replace(/\n/g, (_nl, offset: number, whole: string): string => {
+    const prev = whole.slice(0, offset).replace(/\s+$/, '').slice(-1)
+    const nextMatch = /\S/.exec(whole.slice(offset + 1))
+    const next = nextMatch ? nextMatch[0] : ''
+    const cjkSide = (c: string): boolean => !!c && CJK_CHAR.test(c)
+    return cjkSide(prev) || cjkSide(next) ? SOFTBREAK_SPAN : '\n'
+  })
+}
+
 function wrapSoftBreaks(html: string): string {
   if (!html.includes('\n')) return html
   const parts = html.split(/(<[^>]*>)/)
@@ -96,13 +121,15 @@ function wrapSoftBreaks(html: string): string {
   let out = ''
   for (const part of parts) {
     if (part.startsWith('<')) {
-      const name = part.slice(1).replace(/\/$/, '').toLowerCase()
-      if (name.startsWith('pre') || name.startsWith('textarea') || name.startsWith('script')) {
+      // 闭合标签（</pre>）的 tag 名以 "/" 开头，必须先剥掉再比对；
+      // 否则 preDepth 只增不减，第一个代码块之后的所有软换行都会漏包
+      // （v0.4.4 修复：列表 / 引用块内换行渲染成空格的根因）。
+      if (PRELIKE.has(tagName(part))) {
         preDepth = part[1] === '/' ? Math.max(0, preDepth - 1) : preDepth + 1
       }
       out += part
     } else if (preDepth === 0 && part.includes('\n')) {
-      out += part.replace(/\n/g, SOFTBREAK_SPAN)
+      out += joinSoftBreaks(part)
     } else {
       out += part
     }

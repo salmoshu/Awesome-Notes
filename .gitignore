@@ -14,3 +14,6 @@ release-v*/
 set-volume-min.ps1
 
 tmp/
+
+# agent
+.zcode

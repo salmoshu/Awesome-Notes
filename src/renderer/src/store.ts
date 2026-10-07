@@ -29,6 +29,9 @@ function extsQuery(): string {
 
 export type ViewMode = 'read' | 'source'
 
+/** 文件树操作类型（sidecar /api/projects/:id/fs） */
+export type FsOp = 'move' | 'copy' | 'delete' | 'mkdir' | 'create'
+
 /** 一个打开的文档标签（VSCode 语义：preview 标签被单击复用，双击固定为独立标签） */
 export interface DocTab {
   id: string
@@ -132,6 +135,12 @@ interface State {
   setMode(m: ViewMode): void
   setDraft(d: string): void
   saveDoc(): Promise<void>
+  /**
+   * 文件树操作（重命名/移动、复制、删除、新建目录、新建文档）。
+   * 成功后静默重扫文件树并维护打开的标签（移动改路径、删除关闭），
+   * 批注锚点由 sidecar 在 move/delete 时同步迁移。silent 抑制错误 toast。
+   */
+  fsOp(op: FsOp, args: { from?: string; to?: string; content?: string }, opts?: { silent?: boolean }): Promise<boolean>
   loadAnnotations(): Promise<void>
   toggleAnnPanel(): void
   setComposeQuote(q: State['composeQuote']): void
@@ -712,6 +721,63 @@ export const useStore = create<State>((set, get) => ({
     } catch {
       set({ annotations: [] })
     }
+  },
+
+  async fsOp(op, args, opts) {
+    const s = get()
+    const projectId = s.activeProjectId
+    if (!projectId) return false
+    try {
+      await apiFor(projectId)('POST', `/api/projects/${projectId}/fs`, { op, ...args })
+    } catch (err) {
+      if (!opts?.silent) get().toast('err', `操作失败：${err}`)
+      return false
+    }
+
+    // 移动：重映射打开标签与当前文档的路径（目录移动按前缀展开）
+    if (op === 'move' && args.from && args.to) {
+      const from = args.from
+      const to = args.to
+      const remap = (p: string): string =>
+        p === from ? to : p.startsWith(from + '/') ? to + p.slice(from.length) : p
+      const tabs = s.tabs.map((t) => ({
+        ...t,
+        path: remap(t.path),
+        doc: t.doc ? { ...t.doc, path: remap(t.doc.path) } : t.doc
+      }))
+      const activeDocPath = s.activeDoc ? remap(s.activeDoc.path) : null
+      set({ tabs, activeDoc: s.activeDoc ? { ...s.activeDoc, path: activeDocPath ?? s.activeDoc.path } : s.activeDoc })
+      if (s.activeDoc && activeDocPath !== s.activeDoc.path) await get().loadAnnotations()
+    }
+
+    // 删除：关闭被删路径下的标签（含活动标签，关完落回首个标签）
+    if (op === 'delete' && args.from) {
+      const from = args.from
+      const under = (p: string): boolean => p === from || p.startsWith(from + '/')
+      const tabs = s.tabs.filter((t) => !under(t.path))
+      if (tabs.length !== s.tabs.length) {
+        const closedActive = !tabs.some((t) => t.id === s.activeTabId)
+        set({ tabs })
+        if (closedActive) {
+          const next = tabs[0]
+          if (next) await get().activateTab(next.id)
+          else set({ activeTabId: null, activeDoc: null, draft: '', dirty: false, annotations: [] })
+        }
+      } else if (s.activeDoc && under(s.activeDoc.path)) {
+        await get().loadAnnotations()
+      }
+    }
+
+    // 静默重扫（不走 rescan()，避免每次操作弹 toast）
+    set({ treeLoading: true })
+    try {
+      await apiFor(projectId)('POST', `/api/projects/${projectId}/rescan`, { exts: extsList() })
+      const tree = await apiFor<DocNode>(projectId)('GET', `/api/projects/${projectId}/tree?${extsQuery().slice(1)}`)
+      set({ tree, treeLoading: false })
+    } catch {
+      set({ treeLoading: false })
+    }
+    return true
   },
 
   toggleAnnPanel() {
