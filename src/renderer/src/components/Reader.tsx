@@ -109,7 +109,12 @@ export default function Reader() {
   const isHtml = activeDoc && ['html', 'htm'].includes(activeDoc.ext)
   const project = projects.find((p) => p.id === activeProjectId)
 
-  const onMouseUp = useCallback(() => {
+  const onMouseUp = useCallback((e: React.MouseEvent) => {
+    // 双击用于进入编辑模式（见 MarkdownView onDoubleClick），不弹批注气泡
+    if (e.detail > 1) {
+      setPop(null)
+      return
+    }
     const wrap = proseWrapRef.current
     if (!wrap) return
     const prose = wrap.querySelector('.prose') as HTMLElement | null

@@ -266,7 +266,15 @@ export default function MarkdownView({ content, annotations, onSelectAnn }: Prop
   }, [content, annotations, onSelectAnn])
 
   return (
-    <div className="prose" ref={ref}>
+    <div
+      className="prose"
+      ref={ref}
+      onDoubleClick={(e) => {
+        // 双击正文进入所见即所得编辑；链接 / 批注 / 图片上的双击保留原交互
+        if ((e.target as HTMLElement).closest('a, mark, img')) return
+        useStore.getState().setMode('edit')
+      }}
+    >
       {rendered}
     </div>
   )
