@@ -9,7 +9,7 @@ export interface AppSettings {
   /** 正文使用衬线字体 */
   serifFont: boolean
   /** 打开文档的默认模式 */
-  defaultMode: 'read' | 'edit'
+  defaultMode: 'read' | 'source'
   /** 打开文档时默认展开批注面板 */
   annPanelDefaultOpen: boolean
   /** 编辑器自动保存 */
@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   fontSize: 15,
   contentWidth: 80,
-  serifFont: false,
+  serifFont: true,
   defaultMode: 'read',
   annPanelDefaultOpen: true,
   autoSave: false,
@@ -48,8 +48,13 @@ export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (raw) {
-      const saved = JSON.parse(raw) as Partial<AppSettings>
-      return { ...DEFAULT_SETTINGS, ...saved, contentWidth: normalizeWidth(saved.contentWidth) }
+      const saved = JSON.parse(raw) as Partial<Omit<AppSettings, 'defaultMode'>> & { defaultMode?: string }
+      return {
+        ...DEFAULT_SETTINGS,
+        ...saved,
+        contentWidth: normalizeWidth(saved.contentWidth),
+        defaultMode: saved.defaultMode === 'source' || saved.defaultMode === 'edit' ? 'source' : 'read'
+      }
     }
   } catch {
     /* 损坏数据回退默认 */

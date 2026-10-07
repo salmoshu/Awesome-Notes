@@ -2,7 +2,7 @@ import { type ReactNode } from 'react'
 import { useStore } from '../store'
 
 /** 文档标签栏（VSCode 语义：斜体 = 预览标签，随单击复用；双击固定）；
- *  children 渲染为行右端操作区（阅读|编辑 / 保存等，参考 VSCode markdown 插件） */
+ *  children 渲染为行右端操作区（阅读模式|原文模式 / 保存等） */
 export default function TabsBar({ children }: { children?: ReactNode }) {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)

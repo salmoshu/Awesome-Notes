@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import type { Annotation, DocContent } from '@shared/types'
 import { scrollToEl } from '../utils/scroll'
+import { findAnnotationRange, scrollToRange, setTextHighlight } from '../utils/textRanges'
 
 function fmtTime(s: string): string {
   try {
@@ -44,9 +45,14 @@ function TocView({ activeDoc, mode }: { activeDoc: DocContent | null; mode: stri
   const [activeText, setActiveText] = useState('')
 
   useEffect(() => {
-    // 文档/模式变化后重建；等一帧让 ReactMarkdown 完成渲染
+    // 文档/模式变化后重建；正文直接编辑或异步初始化后实时更新目录。
     const t = setTimeout(() => setToc(buildToc()), 60)
-    return () => clearTimeout(t)
+    const refresh = (): void => setToc(buildToc())
+    window.addEventListener('markdown-rendered', refresh)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('markdown-rendered', refresh)
+    }
   }, [activeDoc?.path, activeDoc?.content, mode])
 
   // 滚动时高亮当前所在章节（取视口内最后一个标题）
@@ -180,11 +186,12 @@ export default function AnnotationPanel() {
   }
 
   const locate = (a: Annotation) => {
-    const el = document.querySelector(`mark.ann-mark[data-ann-id="${a.id}"]`)
-    if (el) {
-      scrollToEl(el, { center: true })
-      el.classList.add('flash')
-      setTimeout(() => el.classList.remove('flash'), 1600)
+    const prose = document.querySelector<HTMLElement>('.prose')
+    const range = prose && findAnnotationRange(prose, a)
+    if (range) {
+      scrollToRange(range)
+      setTextHighlight('ann-flash', [range])
+      setTimeout(() => setTextHighlight('ann-flash', []), 1600)
       setLocating(a.id)
       setTimeout(() => setLocating(null), 1600)
     } else {

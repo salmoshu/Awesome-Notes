@@ -5,7 +5,7 @@ import EditorPane from './EditorPane'
 import Logo from './Logo'
 import TabsBar from './TabsBar'
 import FindBar from './FindBar'
-import { scrollToEl } from '../utils/scroll'
+import { findTextRanges, scrollToRange, setTextHighlight } from '../utils/textRanges'
 import { rawBaseFor, origProjectId } from '../store'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
@@ -14,31 +14,12 @@ const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
 function locateKeyword(keyword: string): boolean {
   const prose = document.querySelector('.prose')
   if (!prose) return false
-  const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT)
-  const needle = keyword.toLowerCase()
-  let n = walker.nextNode() as Text | null
-  while (n) {
-    const idx = (n.nodeValue ?? '').toLowerCase().indexOf(needle)
-    if (idx >= 0) {
-      const mid = n.splitText(idx)
-      mid.splitText(needle.length)
-      const mark = document.createElement('mark')
-      mark.className = 'search-hit'
-      mid.parentNode?.replaceChild(mark, mid)
-      mark.appendChild(mid)
-      scrollToEl(mark, { center: true })
-      setTimeout(() => {
-        const parent = mark.parentNode
-        if (!parent) return
-        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark)
-        parent.removeChild(mark)
-        parent.normalize?.()
-      }, 2400)
-      return true
-    }
-    n = walker.nextNode() as Text | null
-  }
-  return false
+  const range = findTextRanges(prose as HTMLElement, keyword)[0]
+  if (!range) return false
+  setTextHighlight('search-hit', [range])
+  scrollToRange(range)
+  setTimeout(() => setTextHighlight('search-hit', []), 2400)
+  return true
 }
 
 export default function Reader() {
@@ -55,10 +36,8 @@ export default function Reader() {
     annPanelOpen,
     toggleAnnPanel,
     setComposeQuote,
-    projects,
     activeProjectId,
-    activeTabId,
-    toast
+    activeTabId
   } = useStore()
 
   const proseWrapRef = useRef<HTMLDivElement>(null)
@@ -71,11 +50,11 @@ export default function Reader() {
     void rawBaseFor(activeProjectId).then(setRawBase)
   }, [activeProjectId])
 
-  // Ctrl+F 打开文档内查找（编辑模式下编辑器自管 DOM，不提供文档内查找）
+  // Ctrl+F 查找渲染正文；高亮使用 Range，不修改编辑器 DOM。
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-        if (useStore.getState().mode === 'edit') return
+        if (useStore.getState().mode === 'source') return
         e.preventDefault()
         setFindOpen(true)
       }
@@ -84,33 +63,39 @@ export default function Reader() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 进入编辑模式时关闭查找
+  // 切换模式/文档时清理选区气泡和临时高亮。
   useEffect(() => {
-    if (mode === 'edit') setFindOpen(false)
-  }, [mode])
+    if (mode === 'source') setFindOpen(false)
+    setPop(null)
+    setTextHighlight('search-hit', [])
+  }, [mode, activeTabId])
 
   // 搜索结果跳转：文档渲染完成后滚动到关键词命中处
   useEffect(() => {
     if (!pendingLocate || !activeDoc || mode !== 'read') return
     if (pendingLocate.path !== activeDoc.path) return
     const kw = pendingLocate.keyword
-    const t = setTimeout(() => {
+    const locate = (): void => {
+      if (!document.querySelector('.prose')) return
       useStore.getState().setPendingLocate(null)
       if (!locateKeyword(kw)) {
         useStore.getState().toast('info', '已打开文档，但未能定位到关键词位置')
       }
-    }, 350)
-    return () => clearTimeout(t)
+    }
+    const t = setTimeout(locate, 350)
+    window.addEventListener('markdown-rendered', locate, { once: true })
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('markdown-rendered', locate)
+    }
   }, [activeDoc, mode, pendingLocate])
 
-  const openCount = annotations.filter((a) => a.status === 'open').length
   const isImage = activeDoc && IMAGE_EXTS.includes(activeDoc.ext)
   const isMd = activeDoc && ['md', 'markdown', 'mdown', 'mkd'].includes(activeDoc.ext)
   const isHtml = activeDoc && ['html', 'htm'].includes(activeDoc.ext)
-  const project = projects.find((p) => p.id === activeProjectId)
 
   const onMouseUp = useCallback((e: React.MouseEvent) => {
-    // 双击用于进入编辑模式（见 MarkdownView onDoubleClick），不弹批注气泡
+    // 双击保留正常选词行为；拖选文字后再显示批注气泡。
     if (e.detail > 1) {
       setPop(null)
       return
@@ -171,20 +156,24 @@ export default function Reader() {
             <button
               className={mode === 'read' ? 'active' : ''}
               onClick={() => setMode('read')}
-              title="阅读（渲染视图）"
+              title="阅读模式（可直接编辑）"
+              aria-label="阅读模式"
+              aria-pressed={mode === 'read'}
             >
-              👁
+              阅读模式
             </button>
             <button
-              className={mode === 'edit' ? 'active' : ''}
-              onClick={() => setMode('edit')}
-              title="编辑（所见即所得）"
+              className={mode === 'source' ? 'active' : ''}
+              onClick={() => setMode('source')}
+              title="原文模式（编辑源码）"
+              aria-label="原文模式"
+              aria-pressed={mode === 'source'}
             >
-              ✎
+              原文模式
             </button>
           </div>
         )}
-        {mode === 'edit' && dirty && !saving && (
+        {dirty && !saving && (
           <button className="icon-save" onClick={() => void saveDoc()} title="保存 (Ctrl+S)">
             ⌸
           </button>
@@ -207,12 +196,12 @@ export default function Reader() {
         className="reader-body"
         ref={proseWrapRef}
         onMouseUp={onMouseUp}
+        onInput={() => setPop(null)}
       >
-        {mode === 'edit' ? (
+        {mode === 'source' ? (
           <EditorPane />
         ) : isMd ? (
           <MarkdownView
-            content={activeDoc.content}
             annotations={annotations}
             onSelectAnn={() => {
               if (!annPanelOpen) toggleAnnPanel()

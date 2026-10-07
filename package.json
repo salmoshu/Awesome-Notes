@@ -1,6 +1,6 @@
 {
   "name": "awesome-notes",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Awesome-Notes —— 项目富文本文档阅读器（Markdown / HTML），支持批注与编辑，批注可生成地址交给 agent 执行修改",
   "author": "Winchell.Hu <winchell.hu@outlook.com>",
   "license": "MIT",

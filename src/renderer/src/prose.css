@@ -80,24 +80,11 @@
 .prose pre .hljs-function, .prose pre .hljs-title { color: #ffd479; }
 
 /* ---- 批注高亮 ---- */
-.prose mark.ann-mark {
-  background: #fff1a8; color: inherit; padding: 0 1px;
-  border-bottom: 2px solid #f5c451; cursor: pointer; border-radius: 2px;
-  transition: background 0.15s;
-}
-.prose mark.ann-mark:hover { background: #ffe679; }
-.prose mark.ann-mark.done { background: #dcf5e5; border-bottom-color: #34c77b; }
-.prose mark.ann-mark.flash {
-  animation: ann-flash 1.6s ease-out;
-}
-@keyframes ann-flash {
-  0%, 60% { background: #ffd479; box-shadow: 0 0 0 4px rgba(255, 180, 0, 0.35); }
-  100% { background: #fff1a8; box-shadow: none; }
-}
+.prose::highlight(ann-open) { background: #fff1a8; color: inherit; text-decoration: underline #f5c451; }
+.prose::highlight(ann-done) { background: #dcf5e5; color: inherit; text-decoration: underline #34c77b; }
 
 /* ---- 深色主题下的 prose 微调 ---- */
 [data-theme='dark'] .prose code { color: #f0a35e; }
 [data-theme='dark'] .prose blockquote { color: var(--ink2); }
-[data-theme='dark'] .prose mark.ann-mark { background: #6b5d1f; color: #f5e9c8; border-bottom-color: #a8871e; }
-[data-theme='dark'] .prose mark.ann-mark:hover { background: #857028; }
-[data-theme='dark'] .prose mark.ann-mark.done { background: #1d4030; color: #b8e6cc; border-bottom-color: #2e9e68; }
+[data-theme='dark'] .prose::highlight(ann-open) { background: #6b5d1f; color: #f5e9c8; text-decoration-color: #a8871e; }
+[data-theme='dark'] .prose::highlight(ann-done) { background: #1d4030; color: #b8e6cc; text-decoration-color: #2e9e68; }

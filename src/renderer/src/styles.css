@@ -338,22 +338,37 @@ input, textarea { font-family: inherit; }
   white-space: pre-wrap; word-break: break-all; user-select: text;
 }
 
-/* ---- 编辑器（Markdown 所见即所得 / 纯文本） ---- */
+/* ---- 阅读模式（可编辑排版） / 原文模式 ---- */
 .editor-pane { height: 100%; background: var(--paper); }
-.editor-vditor { height: 100%; }
-.editor-vditor .vditor { height: 100%; border: none; border-radius: 0; }
-.editor-vditor .vditor-toolbar { background: var(--paper); border-bottom-color: var(--line); }
-.editor-vditor .vditor-ir > .vditor-reset {
+.markdown-editor { min-height: 100%; }
+.markdown-editor.vditor { border: none; border-radius: 0; background: transparent; }
+.markdown-editor .vditor-toolbar { position: sticky; top: 0; z-index: 20; background: var(--paper); border-bottom-color: var(--line); }
+.markdown-editor .vditor-content,
+.markdown-editor .vditor-wysiwyg { overflow: visible; }
+.markdown-editor .vditor-wysiwyg > .vditor-reset.prose {
   max-width: var(--reader-width, 80%);
-  margin: 0 auto;
-  padding: 24px 40px 60vh;
+  height: auto;
+  min-height: 360px;
+  margin: 28px auto 80px;
+  padding: 44px 56px !important; /* 覆盖 Vditor 按固定预览宽度计算的行内 padding */
   box-sizing: border-box;
   background: var(--paper);
   color: var(--ink);
   font-size: var(--reader-font-size, 15px);
   font-family: var(--reader-font-family, inherit);
   line-height: 1.9;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  white-space: normal;
 }
+.markdown-editor .vditor-wysiwyg > .prose::after { height: 40px; }
+.markdown-editor .vditor-wysiwyg > .prose > h1::before,
+.markdown-editor .vditor-wysiwyg > .prose > h2::before,
+.markdown-editor .vditor-wysiwyg > .prose > h3::before,
+.markdown-editor .vditor-wysiwyg > .prose > h4::before,
+.markdown-editor .vditor-wysiwyg > .prose > h5::before,
+.markdown-editor .vditor-wysiwyg > .prose > h6::before { content: none; }
+.reader .seg button { width: auto; font-size: 12px; padding: 5px 10px; }
 .editor-plain {
   width: 100%; height: 100%; box-sizing: border-box; border: none; outline: none; resize: none;
   padding: 16px 20px; background: var(--paper); color: var(--ink);
@@ -679,7 +694,7 @@ input, textarea { font-family: inherit; }
 .crumb:last-child { color: var(--ink2); font-weight: 600; }
 .crumb-sep { margin: 0 5px; color: var(--ink3); opacity: 0.7; font-size: 10px; }
 
-/* ---- 标签行右侧操作（阅读|编辑 图标 + 保存，VSCode markdown 插件式） ---- */
+/* ---- 标签行右侧操作（阅读模式|原文模式 + 保存） ---- */
 .tabs-actions {
   margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;
   padding: 3px 8px 3px 0;
@@ -766,12 +781,13 @@ input, textarea { font-family: inherit; }
   padding: 3px 7px; border-radius: 5px;
 }
 .fb-btn:hover { background: var(--accent-soft); color: var(--accent); }
-.prose mark.find-hit, .txt-view mark.find-hit {
-  background: rgba(250, 204, 21, 0.45); color: inherit; border-radius: 2px;
+.prose::highlight(find-hit), .txt-view::highlight(find-hit) {
+  background: rgba(250, 204, 21, 0.45); color: inherit;
 }
-.prose mark.find-hit.current, .txt-view mark.find-hit.current {
+.prose::highlight(find-current), .txt-view::highlight(find-current) {
   background: #f59e0b; color: #fff;
 }
+.prose::highlight(search-hit), .prose::highlight(ann-flash) { background: #fde68a; color: inherit; }
 
 /* ---- 远程连接对话框 ---- */
 .remote-dialog {

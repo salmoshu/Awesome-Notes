@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { CSSProperties, RefObject } from 'react'
 import type { AwesomeNotesBridge } from '@shared/types'
 

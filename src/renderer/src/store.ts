@@ -27,7 +27,7 @@ function extsQuery(): string {
   return exts.length > 0 ? `&exts=${encodeURIComponent(exts.join(','))}` : ''
 }
 
-export type ViewMode = 'read' | 'edit'
+export type ViewMode = 'read' | 'source'
 
 /** 一个打开的文档标签（VSCode 语义：preview 标签被单击复用，双击固定为独立标签） */
 export interface DocTab {
@@ -540,6 +540,8 @@ export const useStore = create<State>((set, get) => ({
     const projectId = s.activeProjectId
     if (!projectId) return
     const pinned = opts?.pinned === true
+    const mode = ['md', 'markdown', 'mdown', 'mkd', 'txt'].includes((path.split('.').pop() ?? '').toLowerCase())
+      ? s.settings.defaultMode : 'read'
 
     // 已开同路径标签：激活（双击则顺带固定）
     const existing = s.tabs.find((t) => t.path === path)
@@ -552,7 +554,7 @@ export const useStore = create<State>((set, get) => ({
     }
 
     if (pinned) {
-      const tab: DocTab = { id: newTabId(), path, pinned: true, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
+      const tab: DocTab = { id: newTabId(), path, pinned: true, mode, draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
       set({ tabs: [...s.tabs, tab] })
       await loadTabInto(tab, set, get)
       return
@@ -562,12 +564,12 @@ export const useStore = create<State>((set, get) => ({
     const preview = s.tabs.find((t) => !t.pinned)
     if (preview) {
       if (preview.dirty && !window.confirm('预览标签有未保存的修改，切换文档将丢弃。继续？')) return
-      const tab: DocTab = { ...preview, path, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc', doc: undefined }
+      const tab: DocTab = { ...preview, path, mode, draft: '', dirty: false, scrollTop: 0, panel: 'toc', doc: undefined }
       set({ tabs: s.tabs.map((t) => (t.id === tab.id ? tab : t)) })
       await loadTabInto(tab, set, get)
       return
     }
-    const tab: DocTab = { id: newTabId(), path, pinned: false, mode: 'read', draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
+    const tab: DocTab = { id: newTabId(), path, pinned: false, mode, draft: '', dirty: false, scrollTop: 0, panel: 'toc' }
     set({ tabs: [...s.tabs, tab] })
     await loadTabInto(tab, set, get)
   },
@@ -637,8 +639,8 @@ export const useStore = create<State>((set, get) => ({
     const s = get()
     const cur = s.tabs.find((t) => t.id === s.activeTabId)
     if (cur) set({ tabs: s.tabs.map((t) => (t.id === cur.id ? { ...t, mode: m } : t)) })
-    if (m === 'edit' && s.activeDoc) set({ mode: m, draft: s.activeDoc.content, dirty: false })
-    else set({ mode: m })
+    // 两个模式共用草稿，切换展示方式不能重置未保存的修改。
+    set({ mode: m })
   },
 
   setDraft(d) {

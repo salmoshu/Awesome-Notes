@@ -221,10 +221,10 @@ export default function SettingsView() {
               <div className="st-label">打开文档默认模式</div>
               <div className="seg">
                 <button className={settings.defaultMode === 'read' ? 'active' : ''} onClick={() => setSetting('defaultMode', 'read')}>
-                  阅读
+                  阅读模式
                 </button>
-                <button className={settings.defaultMode === 'edit' ? 'active' : ''} onClick={() => setSetting('defaultMode', 'edit')}>
-                  编辑
+                <button className={settings.defaultMode === 'source' ? 'active' : ''} onClick={() => setSetting('defaultMode', 'source')}>
+                  原文模式
                 </button>
               </div>
             </div>

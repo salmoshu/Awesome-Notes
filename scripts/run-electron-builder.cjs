@@ -4,7 +4,7 @@
 //   2. 构建后校验最新 bundle 含当前版本号标记（__APP_VERSION__），陈旧产物直接中止。
 // 用法：node scripts/run-electron-builder.cjs [--publish]   （OUTPUT_DIR 环境变量可改输出目录）
 const { spawnSync } = require('node:child_process')
-const { readFileSync, readdirSync, statSync } = require('node:fs')
+const { readFileSync } = require('node:fs')
 const { join } = require('node:path')
 
 function run(cmd, args) {
@@ -17,24 +17,26 @@ function run(cmd, args) {
 
 function verifyBuildStamp() {
   const pkg = JSON.parse(readFileSync('package.json', 'utf-8'))
-  const dir = 'out/renderer/assets'
-  const files = readdirSync(dir).filter((f) => f.endsWith('.js'))
-  if (files.length === 0) {
-    console.error('[dist] 校验失败：out/renderer/assets 没有 JS 产物')
+  const rendererDir = 'out/renderer'
+  const html = readFileSync(join(rendererDir, 'index.html'), 'utf-8')
+  const entryTag = (html.match(/<script\b[^>]*>/g) ?? [])
+    .find((tag) => /\btype=["']module["']/.test(tag))
+  const entrySrc = entryTag?.match(/\bsrc=["']([^"']+)["']/)?.[1]
+  if (!entrySrc) {
+    console.error('[dist] 校验失败：out/renderer/index.html 没有应用入口脚本')
     process.exit(1)
   }
-  const newest = files
-    .map((f) => ({ f, m: statSync(join(dir, f)).mtimeMs }))
-    .sort((a, b) => b.m - a.m)[0]
-  const content = readFileSync(join(dir, newest.f), 'utf-8')
+  // 解析器等独立资源不带应用版本；校验 HTML 实际引用的入口，不能按修改时间选 JS。
+  const entryFile = entrySrc.replace(/^(?:\.\/|\/)/, '')
+  const content = readFileSync(join(rendererDir, entryFile), 'utf-8')
   if (!content.includes(pkg.version)) {
     console.error(
-      `[dist] 校验失败：渲染层 bundle（${newest.f}）不含当前版本号 ${pkg.version}，` +
+      `[dist] 校验失败：渲染层 bundle（${entryFile}）不含当前版本号 ${pkg.version}，` +
         '疑似陈旧构建产物，拒绝打包。请先执行 pnpm run build 排查。'
     )
     process.exit(1)
   }
-  console.log(`[dist] 版本标记校验通过：${newest.f} 含 ${pkg.version}`)
+  console.log(`[dist] 版本标记校验通过：${entryFile} 含 ${pkg.version}`)
 }
 
 run('node', ['scripts/build-sidecar.mjs'])
