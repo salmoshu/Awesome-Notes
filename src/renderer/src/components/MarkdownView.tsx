@@ -15,11 +15,36 @@ interface Props {
   onSelectAnn: (id: string) => void
 }
 
-/** 文档相对链接解析为项目内路径；越界返回 null。 */
-export function resolveDocLink(fromPath: string, href: string): string | null {
-  let path = href.split('#')[0].split('?')[0]
+/** 统一路径分隔符：文档链接 / 用户输入里可能混入 Windows 反斜杠 */
+const normSlashes = (p: string): string => p.replace(/\\/g, '/')
+
+/** 项目根的可接受书写变体（把文档里的绝对路径映射回项目内相对路径）：
+ *  - 远程 WSL/SSH 项目：根本身就是 Linux 绝对路径（/home/...）
+ *  - 本地 UNC WSL 项目：\\wsl.localhost\<distro>\home\... → 同时接受 /home/... 写法
+ *  - Windows 本地项目：E:\foo 与 E:/foo 等价（比较时忽略大小写） */
+function projectRootVariants(root: string): string[] {
+  const r = normSlashes(root).replace(/\/+$/, '')
+  const m = /^\/\/(?:wsl\.localhost|wsl\$)\/[^/]+(\/.*)$/i.exec(r)
+  return m ? [r, m[1]] : [r]
+}
+
+/** 文档相对链接解析为项目内路径；越界返回 null。
+ *  支持：相对路径、Linux 绝对路径（/home/...）、Windows 盘符路径（E:/...）、
+ *  WSL UNC 路径（\\wsl.localhost\...），以及混用反斜杠的写法。 */
+export function resolveDocLink(fromPath: string, href: string, projectPath?: string): string | null {
+  let path = normSlashes(href.split('#')[0].split('?')[0])
   try { path = decodeURIComponent(path) } catch { /* 保留原值 */ }
-  if (!path || /^([a-z]+:)?\/\//i.test(path)) return null
+  if (!path) return null
+  if (/^([a-z]+:)?\/\//i.test(path) && !/^\/\/(?:wsl\.localhost|wsl\$)\//i.test(path)) return null
+  // 绝对路径：仅当落在项目根内时映射为相对路径，否则视为越界
+  if (path.startsWith('/') || /^[a-zA-Z]:\//.test(path)) {
+    if (!projectPath) return null
+    const p = path.replace(/\/+$/, '')
+    for (const root of projectRootVariants(projectPath)) {
+      if (p.toLowerCase().startsWith(root.toLowerCase() + '/')) return p.slice(root.length + 1)
+    }
+    return null
+  }
   const segments = [...fromPath.split('/').slice(0, -1), ...path.split('/')]
   const result: string[] = []
   for (const segment of segments) {
@@ -62,10 +87,13 @@ function openLink(href: string): void {
     state.openExtPage(cleaned || href)
     return
   }
-  if (!href || href.startsWith('#') || /^[a-z]+:/i.test(href) || !state.activeDoc) return
-  const resolved = resolveDocLink(state.activeDoc.path, href)
+  // 协议地址（mailto: 等）不处理；Windows 盘符路径（E:/...）按本地绝对路径放行
+  const isDrivePath = /^[a-zA-Z]:[\\/]/.test(href)
+  if (!href || href.startsWith('#') || (/^[a-z][a-z0-9+.-]*:/i.test(href) && !isDrivePath) || !state.activeDoc) return
+  const project = state.projects.find((p) => p.id === state.activeProjectId)
+  const resolved = resolveDocLink(state.activeDoc.path, href, project?.path)
   if (!resolved) {
-    state.toast('info', `无法解析链接目标：${href}（超出项目范围）`)
+    state.toast('info', `无法解析链接目标：${href}（不在当前项目内）`)
   } else if (!LINKABLE_EXTS.some((ext) => resolved.toLowerCase().endsWith(ext))) {
     state.toast('info', '暂不支持预览该类型文件（文档 / 图片 / 常见文本文件可直接打开）')
   } else void state.openDoc(resolved)
@@ -85,6 +113,43 @@ function loadLute(): Promise<void> {
     }).catch((error) => { luteReady = undefined; throw error })
   }
   return luteReady
+}
+
+/* KaTeX 行内公式：Vditor 所见即所得只渲染块级数学（$$…$$ 走预览面板），行内 $…$
+ *  由这里兜底渲染。脚本 id 与 Vditor 内部不同（避免 Vditor addScript 见到占位 id
+ *  提前 resolve 导致的加载竞态），多加载一份本地文件代价可忽略。 */
+let katexReady: Promise<void> | undefined
+function loadKatex(): Promise<void> {
+  if (!katexReady) {
+    katexReady = new Promise<void>((resolve, reject) => {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = 'vditor-libs/dist/js/katex/katex.min.css'
+      document.head.appendChild(link)
+      const script = document.createElement('script')
+      script.src = 'vditor-libs/dist/js/katex/katex.min.js'
+      script.onload = () => resolve()
+      script.onerror = () => { script.remove(); reject(new Error('KaTeX 加载失败')) }
+      document.head.appendChild(script)
+    }).catch((error) => { katexReady = undefined; throw error })
+  }
+  return katexReady
+}
+
+/** 渲染 .prose 内尚未处理的行内公式；原文写入 data-math（序列化时由 Lute 还原为 $…$） */
+function renderInlineMath(prose: HTMLElement): void {
+  const katex = (window as unknown as { katex?: { renderToString(m: string, o: object): string } }).katex
+  if (!katex) return
+  prose.querySelectorAll<HTMLElement>('span.language-math:not([data-math])').forEach((el) => {
+    const math = (el.textContent ?? '').trim()
+    if (!math) return
+    el.setAttribute('data-math', math)
+    try {
+      el.innerHTML = katex.renderToString(math, { displayMode: false, output: 'html' })
+    } catch {
+      el.classList.add('vditor-reset--error')
+    }
+  })
 }
 
 /**
@@ -188,6 +253,27 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
     let frame = 0
     let unsubscribe: (() => void) | undefined
     let annotationRanges: { annotation: Annotation; range: Range }[] = []
+    let popObserver: MutationObserver | undefined
+
+    /** 块悬浮工具栏（上移/下移/删除）垂直居中于目标块：Vditor 把弹层钉在块顶上方
+     *  （inline top = 块 offsetTop - 21，并存入 data-top），纯 CSS 只能给固定偏移，
+     *  段落一高就显得是「上对齐」。这里按 data-top 反查目标块，把弹层改到块垂直中线。 */
+    const centerBlockToolbar = (): void => {
+      const popover = container.querySelector<HTMLElement>('.vditor-wysiwyg > div.vditor-panel--none')
+      if (!popover || popover.style.display === 'none' || disposed) return
+      // 只处理块工具栏（含删除钮）；链接/图片等输入弹层保持原位
+      if (!popover.querySelector('[data-type="remove"]')) return
+      const blockTop = Number(popover.getAttribute('data-top')) + 21
+      if (!Number.isFinite(blockTop)) return
+      const proseEl = container.querySelector<HTMLElement>('.vditor-wysiwyg > .vditor-reset')
+      if (!proseEl) return
+      const block = [...proseEl.querySelectorAll<HTMLElement>(':scope > *, li, table')]
+        .find((el) => el.offsetTop === blockTop)
+      if (!block) return
+      const next = `${Math.max(-8, blockTop + block.offsetHeight / 2 - popover.offsetHeight / 2)}px`
+      if (popover.style.top !== next) popover.style.top = next
+      popover.classList.add('an-vcenter')
+    }
 
     const rewriteImages = (): void => {
       if (!rawBase) return
@@ -217,6 +303,10 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
         const language = [...code.classList].find((name) => name.startsWith('language-'))?.slice(9)
         if (language && hljs.getLanguage(language)) hljs.highlightElement(code)
       })
+      // 行内数学公式（$…$）：所见即所得模式上游不渲染，这里兜底（块级 $$…$$ 由 Vditor 预览面板渲染）
+      if (prose.querySelector('span.language-math:not([data-math])')) {
+        void loadKatex().then(() => { if (!disposed) renderInlineMath(prose) }).catch(() => {})
+      }
       annotationRanges = annotationsRef.current.flatMap((annotation) => {
         const range = findAnnotationRange(prose, annotation)
         return range ? [{ annotation, range }] : []
@@ -284,6 +374,9 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
         i18n: (window as unknown as { VditorI18n: IOptions['i18n'] }).VditorI18n,
         icon: undefined,
         _lutePath: luteUrl,
+        // 图表/数学渲染库随应用内置（scripts/copy-vditor-libs.mjs → public/vditor-libs），
+        // 离线可用，不再走 unpkg CDN
+        cdn: 'vditor-libs',
         value: useStore.getState().draft,
         height: 'auto',
         cache: { enable: false },
@@ -298,7 +391,18 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
         preview: {
           theme: { current: '' },
           hljs: { enable: false },
-          markdown: { mathBlockPreview: false, mark: true }
+          markdown: {
+            // sanitize:false 放行 Markdown 内嵌 HTML 渲染（本地文档为可信内容）
+            sanitize: false,
+            mark: true,
+            sub: true,
+            sup: true,
+            footnotes: true,
+            mathBlockPreview: true,
+            codeBlockPreview: true,
+            gfmAutoLink: true,
+            callout: true
+          }
         },
         after() {
           if (disposed || !editor) return
@@ -336,6 +440,12 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
           lastValue = editor.getValue()
           ready = true
           observer.observe(container, { childList: true, characterData: true, subtree: true })
+          // 块工具栏垂直居中：Vditor 每次悬停块都会重写弹层 inline top，跟随重算
+          const popoverEl = container.querySelector('.vditor-wysiwyg > div.vditor-panel--none')
+          if (popoverEl) {
+            popObserver = new MutationObserver(centerBlockToolbar)
+            popObserver.observe(popoverEl, { attributes: true, attributeFilter: ['style'], childList: true })
+          }
           container.addEventListener('input', onInput)
           container.addEventListener('compositionend', syncDraft)
           container.addEventListener('focusout', syncDraft)
@@ -375,6 +485,7 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
       refreshRef.current = null
       unsubscribe?.()
       observer.disconnect()
+      popObserver?.disconnect()
       resizeObserver.disconnect()
       cancelAnimationFrame(frame)
       container.removeEventListener('input', onInput)

@@ -184,8 +184,28 @@ export default function Sidebar() {
     treeLoading,
     filter,
     setFilter,
-    toast
+    toast,
+    sidebarCollapsed,
+    toggleSidebar,
+    sidebarWidth,
+    setSidebarWidth
   } = useStore()
+
+  /** 右缘拖拽调宽（HTML 文档 iframe 会吞 mousemove，拖拽期间禁用指针事件） */
+  const startResize = (e: ReactMouseEvent): void => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = useStore.getState().sidebarWidth
+    const onMove = (ev: MouseEvent): void => setSidebarWidth(startW + ev.clientX - startX)
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.classList.remove('col-resizing')
+    }
+    document.body.classList.add('col-resizing')
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   const [projCollapsed, setProjCollapsed] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
@@ -503,9 +523,20 @@ export default function Sidebar() {
   // 未连接的远程连接：重启后不自动重连，占位显示 + ⟳ 手动重连（zcode 式）
   const disconnectedRemotes = remotes.filter((r) => !r.connected)
 
+  // 折叠态：仅渲染窄条与展开按钮
+  if (sidebarCollapsed) {
+    return (
+      <aside className="sidebar collapsed">
+        <button className="sb-expand" onClick={toggleSidebar} title="展开侧边栏">»</button>
+      </aside>
+    )
+  }
+
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width: sidebarWidth }}>
+      <div className="sb-resizer" onMouseDown={startResize} title="拖拽调整宽度" />
       <div className="sb-projects">
+        <div className="sb-head-row">
         <button className="sb-proj-toggle" onClick={() => setProjCollapsed(!projCollapsed)}>
           <Chevron open={!projCollapsed} />
           项目（{visibleProjects.length}）
@@ -522,6 +553,8 @@ export default function Sidebar() {
             </span>
           )}
         </button>
+        <button className="sb-collapse" onClick={toggleSidebar} title="折叠侧边栏">«</button>
+        </div>
         {!projCollapsed && (
           <div className="sb-proj-list">
             {visibleProjects.map((p) => {

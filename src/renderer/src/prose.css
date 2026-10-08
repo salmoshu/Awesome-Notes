@@ -67,10 +67,26 @@
 .markdown-editor .vditor-wysiwyg__block:has(> pre:not(.vditor-wysiwyg__preview)[style*='block'])
   > .vditor-wysiwyg__preview { display: none; }
 
+/* HTML 块的预览承载真实渲染的 HTML：用纸张底色与正文墨色，而非代码块暗色面板——
+   否则用户 HTML 自带浅色背景时，文字继承暗面板的浅色，糊成一片看不清 */
+.prose .vditor-wysiwyg__block[data-type='html-block'] > pre.vditor-wysiwyg__preview {
+  background: var(--paper); color: var(--ink);
+}
+
 .prose table {
   border-collapse: collapse; width: 100%; margin: 16px 0;
   font-size: 13.5px; line-height: 1.7; display: block; overflow-x: auto;
 }
+/* 表格 / 代码块横向滚动条：与全局同款窄滑块（原为系统默认粗条，突兀） */
+.prose table, .prose pre { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) transparent; }
+.prose table::-webkit-scrollbar { height: 8px; }
+.prose pre::-webkit-scrollbar { width: 8px; height: 8px; }
+.prose table::-webkit-scrollbar-thumb, .prose pre::-webkit-scrollbar-thumb {
+  background: var(--sb-thumb); border-radius: 4px;
+}
+.prose table::-webkit-scrollbar-track, .prose pre::-webkit-scrollbar-track { background: transparent; }
+[data-theme='dark'] .prose table::-webkit-scrollbar-thumb,
+[data-theme='dark'] .prose pre::-webkit-scrollbar-thumb { background: #3a4050; }
 /* 覆盖 Vditor 内置表格的硬编码浅色（#fafbfc 行底 / #fff 斑马纹 / #dfe2e5 边框）：
    深色模式下这些颜色会显得刺眼发白，统一走主题变量。
    注意斑马纹要压过 vditor 的 `.vditor-reset table tbody tr:nth-child(2n)`

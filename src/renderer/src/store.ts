@@ -59,6 +59,52 @@ export interface Toast {
 /** 项目工作区缓存：切换项目时保存/还原打开的文档标签状态（会话内有效） */
 const projectWorkspaces = new Map<string, { tabs: DocTab[]; activeTabId: string | null }>()
 
+// ---- 布局偏好：侧栏折叠/宽度、批注面板宽度（localStorage 持久化） ----
+const LAYOUT_KEY = 'awesome-notes-layout'
+export const SIDEBAR_MIN_W = 180
+export const SIDEBAR_MAX_W = 520
+export const ANN_MIN_W = 240
+export const ANN_MAX_W = 640
+/** 侧栏再宽也要给正文区留下的最小宽度 */
+export const EDITOR_MIN_W = 360
+const SIDEBAR_COLLAPSED_W = 36
+
+interface LayoutPrefs {
+  sidebarCollapsed: boolean
+  sidebarWidth: number
+  annPanelWidth: number
+}
+
+const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, Math.round(v)))
+
+/** 动态上限：窗口宽度减去另一侧面板与正文最小宽，防止两侧栏把正文挤没（面板重叠遮挡工具栏） */
+const sidebarDynMax = (annOpen: boolean, annW: number): number =>
+  Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, window.innerWidth - (annOpen ? annW : 0) - EDITOR_MIN_W))
+const annDynMax = (sbCollapsed: boolean, sbW: number): number =>
+  Math.max(ANN_MIN_W, Math.min(ANN_MAX_W, window.innerWidth - (sbCollapsed ? SIDEBAR_COLLAPSED_W : sbW) - EDITOR_MIN_W))
+
+function loadLayout(): LayoutPrefs {
+  const def = { sidebarCollapsed: false, sidebarWidth: 272, annPanelWidth: 320 }
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY)
+    if (!raw) return def
+    const p = JSON.parse(raw) as Partial<LayoutPrefs>
+    return {
+      sidebarCollapsed: p.sidebarCollapsed === true,
+      sidebarWidth: clamp(Number(p.sidebarWidth) || def.sidebarWidth, SIDEBAR_MIN_W, SIDEBAR_MAX_W),
+      annPanelWidth: clamp(Number(p.annPanelWidth) || def.annPanelWidth, ANN_MIN_W, ANN_MAX_W)
+    }
+  } catch {
+    return def
+  }
+}
+
+function saveLayout(l: LayoutPrefs): void {
+  try {
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(l))
+  } catch { /* 存储不可用时布局仅在会话内有效 */ }
+}
+
 let tabSeq = 1
 let toastSeq = 1
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -98,6 +144,22 @@ interface State {
   extPageUrl: string | null
   /** 搜索结果点击后待定位：打开文档后滚到首个命中处 */
   pendingLocate: { path: string; keyword: string } | null
+  /** 左侧边栏折叠为窄条 */
+  sidebarCollapsed: boolean
+  /** 左侧边栏宽度（px，右缘拖拽调整） */
+  sidebarWidth: number
+  /** 右侧目录/批注面板宽度（px，左缘拖拽调整） */
+  annPanelWidth: number
+  /** 全屏专注模式：隐藏左右侧栏，正文右侧以钢琴条呈现目录/批注入口 */
+  zenMode: boolean
+  /** 专注模式下展开的右侧浮层页签 */
+  zenPanel: 'toc' | 'ann' | null
+
+  toggleSidebar(): void
+  setSidebarWidth(w: number): void
+  setAnnPanelWidth(w: number): void
+  setZenMode(on: boolean): void
+  setZenPanel(p: 'toc' | 'ann' | null): void
 
   setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   openSettings(): void
@@ -229,6 +291,37 @@ export const useStore = create<State>((set, get) => ({
   settingsOpen: false,
   extPageUrl: null,
   pendingLocate: null,
+  ...loadLayout(),
+  zenMode: false,
+  zenPanel: null,
+
+  toggleSidebar() {
+    const next = !get().sidebarCollapsed
+    set({ sidebarCollapsed: next })
+    saveLayout({ sidebarCollapsed: next, sidebarWidth: get().sidebarWidth, annPanelWidth: get().annPanelWidth })
+  },
+
+  setSidebarWidth(w) {
+    const v = clamp(w, SIDEBAR_MIN_W, sidebarDynMax(get().annPanelOpen, get().annPanelWidth))
+    set({ sidebarWidth: v })
+    saveLayout({ sidebarCollapsed: get().sidebarCollapsed, sidebarWidth: v, annPanelWidth: get().annPanelWidth })
+  },
+
+  setAnnPanelWidth(w) {
+    const v = clamp(w, ANN_MIN_W, annDynMax(get().sidebarCollapsed, get().sidebarWidth))
+    set({ annPanelWidth: v })
+    saveLayout({ sidebarCollapsed: get().sidebarCollapsed, sidebarWidth: get().sidebarWidth, annPanelWidth: v })
+  },
+
+  setZenMode(on) {
+    set({ zenMode: on, zenPanel: on ? get().zenPanel : null })
+  },
+
+  setZenPanel(p) {
+    // 展开浮层时同步标签记忆的页签，AnnotationPanel 会跟随显示对应内容
+    if (p) get().patchActiveTab({ panel: p })
+    set({ zenPanel: p })
+  },
 
   setSetting(key, value) {
     const next = { ...get().settings, [key]: value }
@@ -548,6 +641,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async openTab(path, opts) {
+    // 文档链接/外部输入可能带 Windows 反斜杠，统一为正斜杠相对路径
+    path = path.replace(/\\/g, '/')
     const s = get()
     const projectId = s.activeProjectId
     if (!projectId) return
@@ -630,7 +725,8 @@ export const useStore = create<State>((set, get) => ({
     if (next) {
       void loadTabInto(next, set, get)
     } else {
-      set({ activeDoc: null, docError: null, draft: '', dirty: false, annotations: [], composeQuote: null })
+      // 全部标签关闭：退出专注模式，避免侧栏被隐藏后无处恢复
+      set({ activeDoc: null, docError: null, draft: '', dirty: false, annotations: [], composeQuote: null, zenMode: false, zenPanel: null })
     }
   },
 
@@ -784,7 +880,11 @@ export const useStore = create<State>((set, get) => ({
   },
 
   toggleAnnPanel() {
-    set((s) => ({ annPanelOpen: !s.annPanelOpen }))
+    set((s) => ({
+      annPanelOpen: !s.annPanelOpen,
+      // 打开时按当前窗口宽度收敛面板宽，避免与侧栏合力挤没正文
+      annPanelWidth: s.annPanelOpen ? s.annPanelWidth : clamp(s.annPanelWidth, ANN_MIN_W, annDynMax(s.sidebarCollapsed, s.sidebarWidth))
+    }))
   },
 
   setComposeQuote(q) {

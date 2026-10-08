@@ -1,6 +1,6 @@
 {
   "name": "awesome-notes",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Awesome-Notes —— 项目富文本文档阅读器（Markdown / HTML），支持批注与编辑，批注可生成地址交给 agent 执行修改",
   "author": "Winchell.Hu <winchell.hu@outlook.com>",
   "license": "MIT",
@@ -9,12 +9,12 @@
   "packageManager": "pnpm@11.15.1",
   "main": "./out/main/index.js",
   "scripts": {
-    "postinstall": "node scripts/install-native.mjs",
+    "postinstall": "node scripts/install-native.mjs && node scripts/copy-vditor-libs.mjs",
     "build:sidecar": "node scripts/build-sidecar.mjs",
-    "predev": "node scripts/install-native.mjs && node scripts/build-sidecar.mjs",
+    "predev": "node scripts/install-native.mjs && node scripts/copy-vditor-libs.mjs && node scripts/build-sidecar.mjs",
     "dev": "electron-vite dev",
     "dev:web": "vite --config vite.web.config.ts",
-    "prebuild": "node scripts/build-sidecar.mjs",
+    "prebuild": "node scripts/copy-vditor-libs.mjs && node scripts/build-sidecar.mjs",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "start": "electron-vite preview",

@@ -12,11 +12,26 @@ import AddProjectDialog from './components/AddProjectDialog'
 import Logo from './components/Logo'
 
 export default function App() {
-  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage, settingsOpen } = useStore()
+  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage, settingsOpen, zenMode, zenPanel } = useStore()
 
   useEffect(() => {
     void init()
   }, [init])
+
+  // 专注模式：Esc 先关右侧浮层，再退出全屏（查找条/右键菜单/浮层网页打开时不抢 Esc）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      const s = useStore.getState()
+      if (!s.zenMode) return
+      if (s.extPageUrl || s.settingsOpen || s.addProjectOpen) return
+      if (document.querySelector('.find-bar') || document.querySelector('.ctx-menu')) return
+      if (s.zenPanel) s.setZenPanel(null)
+      else s.setZenMode(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // 主进程拦截到的外链（导航 / window.open）转应用内浮层；浮层未挂载也能收到
   useEffect(() => window.awesomeNotes?.onOpenExternalPage((url) => useStore.getState().openExtPage(url)), [])
@@ -66,11 +81,12 @@ export default function App() {
           <SettingsView />
         ) : (
           <>
-            <Sidebar />
-            <main className="reader-wrap">
+            {!zenMode && <Sidebar />}
+            <main className={`reader-wrap ${zenMode ? 'zen' : ''}`}>
               <Reader />
+              {zenMode && zenPanel && activeDoc && <AnnotationPanel />}
             </main>
-            {annPanelOpen && activeDoc && <AnnotationPanel />}
+            {!zenMode && annPanelOpen && activeDoc && <AnnotationPanel />}
           </>
         )}
       </div>

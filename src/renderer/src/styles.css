@@ -367,6 +367,15 @@ input, textarea { user-select: text; }
 .markdown-editor { min-height: 100%; }
 .markdown-editor.vditor { border: none; border-radius: 0; background: transparent; }
 .markdown-editor .vditor-toolbar { position: sticky; top: 0; z-index: 20; background: var(--paper); border-bottom-color: var(--line); }
+/* 工具栏悬浮提示改为向下弹出：按钮贴着 .reader-body（overflow 裁剪域）上沿，
+   默认向上（__n/__ne）的气泡被整体裁剪，表现为“鼠标放上去没有提示” */
+.markdown-editor .vditor-toolbar .vditor-tooltipped::after {
+  top: 100%; bottom: auto; margin-top: 5px; margin-bottom: 0;
+}
+.markdown-editor .vditor-toolbar .vditor-tooltipped::before {
+  top: auto; bottom: -5px; margin-bottom: 0;
+  border-top-color: transparent; border-bottom-color: #3b3e43;
+}
 .markdown-editor .vditor-content,
 .markdown-editor .vditor-wysiwyg { overflow: visible; }
 .markdown-editor .vditor-wysiwyg > .vditor-reset.prose {
@@ -406,12 +415,16 @@ input, textarea { user-select: text; }
 
 /* 块悬浮工具栏（上移/下移/删除）：从块内左上角移到行左侧空白区（参考 Awesome-Resume 行级操作）。
    --prose-left 由 MarkdownView.refresh 写入（正文卡片相对编辑器左侧的偏移）；
-   含输入框的弹层（链接/图片/表格编辑）保持原位，不左移。 */
-.markdown-editor .vditor-wysiwyg > div.vditor-panel--none:not(:has(.vditor-input)) {
+   含输入框的弹层（链接/图片/表格编辑）保持原位，不左移；划词弹层（第二个 panel）也不左移。
+   默认对齐段落首行（26px 兜底偏移）；MarkdownView.centerBlockToolbar 找到目标块后
+   加 .an-vcenter 并改写 inline top，工具栏改为与整个块垂直居中。 */
+.markdown-editor .vditor-wysiwyg > div.vditor-panel--none:first-of-type:not(:has(.vditor-input)) {
   left: calc(var(--prose-left, 0px) + 50px) !important;
-  /* 垂直居中于段落首行（inline top 为块顶-21px，工具栏高约 21px，首行中心约 +14px） */
   transform: translate(-100%, 26px);
   opacity: 1;
+}
+.markdown-editor .vditor-wysiwyg > div.vditor-panel--none:first-of-type.an-vcenter:not(:has(.vditor-input)) {
+  transform: translate(-100%, 0);
 }
 .markdown-editor .vditor-wysiwyg > div.vditor-panel--none:not(:has(.vditor-input)) button {
   padding: 4px 5px;
@@ -1136,3 +1149,90 @@ input[type='range'] { accent-color: var(--accent); width: 180px; }
 }
 .ap-edit textarea:focus { border-color: var(--accent); }
 .ap-edit .ap-card-ops { margin-top: 6px; }
+
+/* ---- v0.4.6：侧栏折叠 / 拖拽调宽 / 全屏专注模式 ---- */
+
+/* 拖拽调宽期间：全局光标统一为 col-resize，且禁用 iframe 指针事件
+   （HTML 文档的 iframe 会吞掉 mousemove，导致拖拽中断） */
+body.col-resizing { cursor: col-resize; }
+body.col-resizing iframe, body.col-resizing webview { pointer-events: none; }
+
+/* 左侧边栏：相对定位承载右缘拖拽把手 */
+.sidebar { position: relative; }
+.sb-resizer {
+  position: absolute; top: 0; right: -3px; width: 6px; height: 100%; z-index: 30;
+  cursor: col-resize;
+}
+.sb-resizer:hover { background: var(--accent-soft); }
+.sb-head-row { display: flex; align-items: center; gap: 2px; }
+.sb-head-row .sb-proj-toggle { flex: 1; min-width: 0; }
+.sb-collapse {
+  flex: none; border: none; background: transparent; color: var(--sidebar-ink2);
+  border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1;
+}
+.sb-collapse:hover { background: var(--sb-hover); color: var(--sb-hover-ink); }
+/* 折叠后的窄条 */
+.sidebar.collapsed {
+  width: 34px; flex: none; display: flex; flex-direction: column; align-items: center;
+  background: var(--sidebar-bg); border-right: 1px solid var(--sidebar-line);
+  padding-top: 8px;
+}
+.sb-expand {
+  border: none; background: transparent; color: var(--sidebar-ink2);
+  width: 24px; height: 24px; border-radius: 6px; font-size: 14px; line-height: 1;
+}
+.sb-expand:hover { background: var(--sb-hover); color: var(--sb-hover-ink); }
+
+/* 右侧目录/批注面板：相对定位承载左缘拖拽把手 + 折叠按钮 */
+.ann-panel { position: relative; }
+.ap-resizer {
+  position: absolute; top: 0; left: -3px; width: 6px; height: 100%; z-index: 30;
+  cursor: col-resize;
+}
+.ap-resizer:hover { background: var(--accent-soft); }
+.ap-collapse {
+  flex: none; border: none; background: transparent; color: var(--ink3);
+  border-radius: 6px; width: 22px; height: 22px; font-size: 13px; line-height: 1;
+}
+.ap-collapse:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* 全屏专注模式：标签行右侧的 ⛶ 按钮 */
+.zen-toggle { padding: 3px 9px; font-size: 13px; }
+
+/* 专注模式下的目录/批注浮层：覆盖在正文右侧（钢琴条内侧） */
+.reader-wrap { position: relative; }
+.reader-wrap.zen .ann-panel {
+  position: absolute; right: 26px; top: 0; bottom: 0; z-index: 45;
+  box-shadow: -10px 0 28px rgba(16, 24, 40, 0.16);
+}
+[data-theme='dark'] .reader-wrap.zen .ann-panel { box-shadow: -10px 0 28px rgba(0, 0, 0, 0.55); }
+
+/* 钢琴条：章节刻度悬浮显示章节名、点击跳转；底部 目/注/× 把手 */
+.piano-rail {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 22px; z-index: 40;
+  display: flex; flex-direction: column; border-radius: 8px 0 0 8px;
+}
+.piano-rail:hover { background: rgba(127, 127, 127, 0.07); }
+.pr-ticks { flex: 1; min-height: 0; position: relative; margin: 10px 0; }
+.pr-tick {
+  position: absolute; right: 3px; height: 3px; border: none; border-radius: 2px;
+  background: var(--ink3); opacity: 0.4; padding: 0; cursor: pointer;
+  transition: opacity 0.12s, background 0.12s;
+}
+.pr-tick:hover { opacity: 1; background: var(--accent); }
+.pr-tick.lv1 { width: 16px; }
+.pr-tick.lv2 { width: 13px; }
+.pr-tick.lv3 { width: 10px; }
+.pr-tick.lv4, .pr-tick.lv5, .pr-tick.lv6 { width: 7px; }
+.pr-ops { flex: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 0 12px; }
+.pr-ops button {
+  position: relative; width: 20px; height: 20px; border: none; border-radius: 5px;
+  background: transparent; color: var(--ink3); font-size: 11px; line-height: 1; padding: 0;
+}
+.pr-ops button:hover { background: var(--accent-soft); color: var(--accent); }
+.pr-ops button.active { background: var(--accent); color: #fff; }
+.pr-badge {
+  position: absolute; top: -5px; right: -7px; min-width: 13px; height: 13px;
+  border-radius: 999px; background: var(--danger); color: #fff;
+  font-size: 9px; line-height: 13px; padding: 0 3px; text-align: center;
+}

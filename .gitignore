@@ -4,6 +4,7 @@ dist/
 release/
 sidecar/bin/
 sidecar/data*/
+src/renderer/public/vditor-libs/
 .toolchain/
 *.log
 .DS_Store

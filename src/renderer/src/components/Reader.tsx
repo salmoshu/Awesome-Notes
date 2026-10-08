@@ -5,6 +5,7 @@ import EditorPane from './EditorPane'
 import Logo from './Logo'
 import TabsBar from './TabsBar'
 import FindBar from './FindBar'
+import PianoRail from './PianoRail'
 import { findTextRanges, scrollToRange, setTextHighlight } from '../utils/textRanges'
 import { rawBaseFor, origProjectId } from '../store'
 
@@ -39,13 +40,16 @@ export default function Reader() {
     setComposeQuote,
     activeProjectId,
     activeTabId,
-    closeTab
+    closeTab,
+    zenMode,
+    setZenMode
   } = useStore()
 
   const proseWrapRef = useRef<HTMLDivElement>(null)
   const [pop, setPop] = useState<{ x: number; y: number; below?: boolean } | null>(null)
   const [rawBase, setRawBase] = useState('')
   const [findOpen, setFindOpen] = useState(false)
+  const [htmlError, setHtmlError] = useState<string | null>(null)
 
   // HTML 文档经 sidecar /raw 以真实 URL 加载（远程项目走远端 base）
   useEffect(() => {
@@ -95,6 +99,35 @@ export default function Reader() {
   const isImage = activeDoc && IMAGE_EXTS.includes(activeDoc.ext)
   const isMd = activeDoc && ['md', 'markdown', 'mdown', 'mkd'].includes(activeDoc.ext)
   const isHtml = activeDoc && ['html', 'htm'].includes(activeDoc.ext)
+
+  // HTML 文档 / 图片经 sidecar /raw 以真实 URL 加载（远程项目走远端 base）
+  const rawUrl =
+    activeDoc && rawBase
+      ? `${rawBase}/raw/${origProjectId(activeProjectId ?? '')}/${activeDoc.path
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}`
+      : ''
+
+  // HTML 直读失败时（文件被移动/重命名、路径越界等）展示错误卡片，
+  // 而不是把服务端返回的 {"error":...} JSON 原文扔进 iframe
+  useEffect(() => {
+    setHtmlError(null)
+    if (!isHtml || !rawUrl) return
+    let dead = false
+    fetch(rawUrl, { headers: { Range: 'bytes=0-0' } })
+      .then(async (r) => {
+        if (dead || r.ok) return
+        const d = (await r.json().catch(() => ({}))) as { error?: string }
+        setHtmlError(d.error ?? `HTTP ${r.status}`)
+      })
+      .catch((err) => {
+        if (!dead) setHtmlError(`无法连接文件服务：${err instanceof Error ? err.message : err}`)
+      })
+    return () => {
+      dead = true
+    }
+  }, [isHtml, rawUrl])
 
   const onMouseUp = useCallback((e: React.MouseEvent) => {
     // 双击保留正常选词行为；拖选文字后再显示批注气泡。
@@ -183,6 +216,14 @@ export default function Reader() {
   return (
     <div className="reader">
       <TabsBar>
+        <button
+          className={`rt-btn zen-toggle ${zenMode ? 'active' : ''}`}
+          onClick={() => setZenMode(!zenMode)}
+          title={zenMode ? '退出全屏专注 (Esc)' : '全屏专注：隐藏两侧边栏，目录 / 批注收起到右侧钢琴条'}
+          aria-pressed={zenMode}
+        >
+          ⛶
+        </button>
         {(isMd || activeDoc.ext === 'txt' || isHtml) && (
           <div className="seg icon-seg">
             <button
@@ -241,26 +282,26 @@ export default function Reader() {
           />
         ) : isImage ? (
           <div className="img-view-wrap">
-            <img
-              className="img-view"
-              src={`${rawBase}/raw/${origProjectId(activeProjectId ?? '')}/${activeDoc.path
-                .split('/')
-                .map(encodeURIComponent)
-                .join('/')}`}
-              alt={activeDoc.path}
-            />
+            <img className="img-view" src={rawUrl} alt={activeDoc.path} />
           </div>
         ) : isHtml ? (
-          rawBase && (
-            <iframe
-              className="html-view"
-              sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-modals"
-              src={`${rawBase}/raw/${origProjectId(activeProjectId ?? '')}/${activeDoc.path
-                .split('/')
-                .map(encodeURIComponent)
-                .join('/')}`}
-              title={activeDoc.path}
-            />
+          htmlError ? (
+            <div className="reader-empty">
+              <div className="re-error">
+                <div className="re-error-icon">⚠</div>
+                <div className="re-error-title">网页加载失败</div>
+                <div className="re-error-desc">{htmlError}</div>
+              </div>
+            </div>
+          ) : (
+            rawUrl && (
+              <iframe
+                className="html-view"
+                sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-modals"
+                src={rawUrl}
+                title={activeDoc.path}
+              />
+            )
           )
         ) : (
           <pre className="txt-view">{activeDoc.content}</pre>
@@ -277,6 +318,8 @@ export default function Reader() {
           </button>
         )}
       </div>
+
+      {zenMode && <PianoRail />}
     </div>
   )
 }

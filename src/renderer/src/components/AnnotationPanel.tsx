@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useStore } from '../store'
 import { ANNOTATION_KIND_LABELS, type Annotation, type AnnotationKind, type DocContent } from '@shared/types'
 import { scrollToEl } from '../utils/scroll'
@@ -17,7 +17,7 @@ function kindOf(a: Annotation): AnnotationKind {
   return a.kind ?? 'annotation'
 }
 
-interface TocEntry {
+export interface TocEntry {
   level: number
   text: string
   /** 编辑（原文）模式：标题在源码中的行号（0 起） */
@@ -25,7 +25,7 @@ interface TocEntry {
 }
 
 /** 从已渲染的 .prose 提取标题目录（阅读模式） */
-function buildToc(): TocEntry[] {
+export function buildToc(): TocEntry[] {
   const prose = document.querySelector('.prose')
   if (!prose) return []
   return [...prose.querySelectorAll('h1,h2,h3,h4,h5,h6')].map((el) => ({
@@ -36,7 +36,7 @@ function buildToc(): TocEntry[] {
 
 /** 从 Markdown 源码提取标题目录（编辑模式）：标题行 #.. 逐行扫描，
  *  代码围栏内的 # 不算标题 */
-function buildTocFromSource(src: string): TocEntry[] {
+export function buildTocFromSource(src: string): TocEntry[] {
   const out: TocEntry[] = []
   let fence = false
   src.split('\n').forEach((raw, line) => {
@@ -49,7 +49,7 @@ function buildTocFromSource(src: string): TocEntry[] {
 }
 
 /** 点击目录项时现查标题节点（避免持有被重渲染替换的旧引用），滚动并返回元素 */
-function scrollToHeading(entry: TocEntry): Element | null {
+export function scrollToHeading(entry: TocEntry): Element | null {
   const prose = document.querySelector('.prose')
   if (!prose) return null
   const el = [...prose.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(
@@ -85,7 +85,7 @@ function sourceTextOrigin(textarea: HTMLTextAreaElement): { top: number; lineHei
 }
 
 /** 编辑模式：把源码编辑器滚动到标题行并选中该行（滚动在外层 .reader-body） */
-function scrollToSourceHeading(entry: TocEntry): boolean {
+export function scrollToSourceHeading(entry: TocEntry): boolean {
   const textarea = document.querySelector<HTMLTextAreaElement>('.editor-plain')
   if (!textarea || entry.line === undefined) return false
   const lines = textarea.value.split('\n')
@@ -212,6 +212,25 @@ export default function AnnotationPanel() {
   // 面板页签随文档标签记忆（默认目录）；划词批注时自动切回标注
   const storedPanel = useStore((st) => st.tabs.find((t) => t.id === st.activeTabId)?.panel)
   const [tab, setTab] = useState<'toc' | 'ann'>(storedPanel ?? 'toc')
+  const annPanelWidth = useStore((st) => st.annPanelWidth)
+  const setAnnPanelWidth = useStore((st) => st.setAnnPanelWidth)
+  const toggleAnnPanel = useStore((st) => st.toggleAnnPanel)
+
+  /** 左缘拖拽调宽（往左拖变宽）；HTML 文档 iframe 会吞 mousemove，拖拽期间禁用指针事件 */
+  const startResize = (e: ReactMouseEvent): void => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = useStore.getState().annPanelWidth
+    const onMove = (ev: MouseEvent): void => setAnnPanelWidth(startW - (ev.clientX - startX))
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.classList.remove('col-resizing')
+    }
+    document.body.classList.add('col-resizing')
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   // 标签类型可直接从右侧侧边栏选择历史标签（当前文档用过的）
   const knownTags = useMemo(
@@ -313,7 +332,8 @@ export default function AnnotationPanel() {
   const done = annotations.filter((a) => a.status === 'done')
 
   return (
-    <aside className="ann-panel">
+    <aside className="ann-panel" style={{ width: annPanelWidth }}>
+      <div className="ap-resizer" onMouseDown={startResize} title="拖拽调整宽度" />
       <div className="ap-head">
         <div className="ap-tabs">
           <button className={tab === 'toc' ? 'active' : ''} onClick={() => switchTab('toc')}>
@@ -328,6 +348,9 @@ export default function AnnotationPanel() {
             {open.length} 待处理 · {done.length} 已完成
           </span>
         )}
+        <button className="ap-collapse" onClick={toggleAnnPanel} title="折叠面板（标题栏 ▤ 可重新打开）">
+          »
+        </button>
       </div>
 
       {tab === 'toc' && (
