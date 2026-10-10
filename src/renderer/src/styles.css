@@ -805,10 +805,11 @@ input, textarea { user-select: text; }
 .crumb:last-child { color: var(--ink2); font-weight: 600; }
 .crumb-sep { margin: 0 5px; color: var(--ink3); opacity: 0.7; font-size: 10px; }
 
-/* ---- 标签行右侧操作（阅读模式|原文模式 + 保存） ---- */
+/* ---- 标签行右侧操作（全屏专注 / 阅读模式|编辑模式 + 保存）：固定右端，不随 tab 滚动 ---- */
 .tabs-actions {
-  margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;
-  padding: 3px 8px 3px 0;
+  flex: none; display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px 3px 8px; background: var(--bg);
+  border-left: 1px solid var(--line);
 }
 .tabs-actions .icon-seg { border: none; border-radius: 6px; overflow: hidden; }
 .tabs-actions .icon-seg button {
@@ -846,15 +847,22 @@ input, textarea { user-select: text; }
 
 .tb-set.on { background: var(--sb-active); color: var(--sb-active-ink); }
 
-/* ---- 文档标签栏（VSCode 式） ---- */
+/* ---- 文档标签栏（VSCode 式） ----
+ * 多文档边界：tab 区（.tabs-scroll）与右端操作区（.tabs-actions）分离——
+ * 仅 tab 区横向滚动，全屏 / 阅读·编辑 / 保存按钮固定可视，不被大量 tab 挤走 */
 .tabs-bar {
-  flex: none; display: flex; align-items: stretch; gap: 1px; overflow-x: auto;
+  flex: none; display: flex; align-items: stretch; gap: 1px;
   background: var(--bg); border-bottom: 1px solid var(--line); min-height: 34px;
 }
-.tabs-bar::-webkit-scrollbar { height: 3px; }
-.tabs-bar::-webkit-scrollbar-thumb { background: var(--line); }
+.tabs-scroll {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; gap: 1px;
+  overflow-x: auto;
+}
+.tabs-scroll::-webkit-scrollbar { height: 3px; }
+.tabs-scroll::-webkit-scrollbar-thumb { background: var(--line); }
 .doc-tab {
-  display: flex; align-items: center; gap: 6px; flex: none; max-width: 200px;
+  display: flex; align-items: center; gap: 6px;
+  flex: 0 1 200px; min-width: 96px; /* 先收缩到最小宽，再进入横向滚动 */
   padding: 0 8px 0 12px; font-size: 12.5px; color: var(--ink2);
   border-right: 1px solid var(--line); cursor: pointer; user-select: none;
   background: var(--paper);
