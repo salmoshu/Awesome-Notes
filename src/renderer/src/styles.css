@@ -873,6 +873,10 @@ input, textarea { user-select: text; }
   color: var(--ink); background: var(--paper); font-weight: 600;
   box-shadow: inset 0 2px 0 var(--accent);
 }
+/* 拖拽排序：插入位置强调色竖线，被拖 tab 半透明 */
+.doc-tab.dragging { opacity: 0.45; }
+.doc-tab.drop-before { box-shadow: inset 3px 0 0 var(--accent); }
+.doc-tab.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
 .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-dirty { color: var(--accent); font-size: 9px; }
 .tab-close {

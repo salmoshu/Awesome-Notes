@@ -77,16 +77,19 @@
   border-collapse: collapse; width: 100%; margin: 16px 0;
   font-size: 13.5px; line-height: 1.7; display: block; overflow-x: auto;
 }
-/* 表格 / 代码块横向滚动条：与全局同款窄滑块（原为系统默认粗条，突兀） */
+/* 表格 / 代码块横向滚动条：与全局同款窄滑块（原为系统默认粗条，突兀）；hover 加深提示可拖 */
 .prose table, .prose pre { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) transparent; }
 .prose table::-webkit-scrollbar { height: 8px; }
 .prose pre::-webkit-scrollbar { width: 8px; height: 8px; }
 .prose table::-webkit-scrollbar-thumb, .prose pre::-webkit-scrollbar-thumb {
-  background: var(--sb-thumb); border-radius: 4px;
+  background: var(--sb-thumb); border-radius: 4px; transition: background 0.15s;
 }
+.prose table::-webkit-scrollbar-thumb:hover, .prose pre::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
 .prose table::-webkit-scrollbar-track, .prose pre::-webkit-scrollbar-track { background: transparent; }
 [data-theme='dark'] .prose table::-webkit-scrollbar-thumb,
 [data-theme='dark'] .prose pre::-webkit-scrollbar-thumb { background: #3a4050; }
+[data-theme='dark'] .prose table::-webkit-scrollbar-thumb:hover,
+[data-theme='dark'] .prose pre::-webkit-scrollbar-thumb:hover { background: #4d5566; }
 /* 覆盖 Vditor 内置表格的硬编码浅色（#fafbfc 行底 / #fff 斑马纹 / #dfe2e5 边框）：
    深色模式下这些颜色会显得刺眼发白，统一走主题变量。
    注意斑马纹要压过 vditor 的 `.vditor-reset table tbody tr:nth-child(2n)`
@@ -96,6 +99,20 @@
 .prose th, .prose td { border: 1px solid var(--line); padding: 7px 11px; text-align: left; vertical-align: top; }
 .prose th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
 .vditor-reset.prose table tbody tr:nth-child(2n) { background-color: rgba(127, 127, 127, 0.05); }
+/* 列宽/行高（Typora 式平衡）：单元格允许换行，列的自动宽度以内容为上限封顶——
+   既不因超长内容把表格撑成横向长条，也不让单个单元格堆出太多行 */
+.vditor-reset.prose table { table-layout: auto; min-width: 50%; }
+.vditor-reset.prose table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 36em; /* 最宽列 ≈ 36 字宽：更长的内容换行，行数与表宽折中 */
+}
+.vditor-reset.prose table th {
+  white-space: normal;
+  word-break: break-word;
+  max-width: 18em;
+}
 /* 深色表格：表头与斑马纹改中性暗色，避免亮块 */
 [data-theme='dark'] .vditor-reset.prose table th { background: rgba(127, 127, 127, 0.16); }
 [data-theme='dark'] .vditor-reset.prose table tbody tr:nth-child(2n) { background-color: rgba(127, 127, 127, 0.07); }

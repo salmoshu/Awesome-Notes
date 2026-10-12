@@ -59,6 +59,40 @@ export interface Toast {
 /** 项目工作区缓存：切换项目时保存/还原打开的文档标签状态（会话内有效） */
 const projectWorkspaces = new Map<string, { tabs: DocTab[]; activeTabId: string | null }>()
 
+const IMAGE_EXT_SET = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'])
+
+/**
+ * 活动文档外部变更轮询：标签打开期间磁盘原文被其它程序（agent / 编辑器）更新时，
+ * 若本地没有未保存修改，自动重载内容——阅读模式经订阅整体重渲染，编辑模式刷新草稿。
+ * 图片等二进制不校验；请求失败静默（远程项目网络抖动），下个周期再试。
+ */
+let activeDocWatcherStarted = false
+function startActiveDocWatcher(): void {
+  if (activeDocWatcherStarted) return
+  activeDocWatcherStarted = true
+  setInterval(() => {
+    void (async () => {
+      const s = useStore.getState()
+      if (!s.activeDoc || !s.activeProjectId || !s.activeTabId || s.dirty || s.docLoading || s.docError) return
+      if (IMAGE_EXT_SET.has(s.activeDoc.ext)) return
+      try {
+        const doc = await apiFor<DocContent>(s.activeProjectId)(
+          'GET',
+          `/api/projects/${s.activeProjectId}/doc?path=${encodeURIComponent(s.activeDoc.path)}`
+        )
+        const cur = useStore.getState()
+        if (cur.activeTabId !== s.activeTabId || cur.dirty || cur.docLoading) return
+        if (doc.mtime !== s.activeDoc.mtime || doc.size !== s.activeDoc.size) {
+          cur.patchActiveTab({ doc })
+          useStore.setState({ activeDoc: doc, draft: doc.content, dirty: false })
+        }
+      } catch {
+        /* 静默重试 */
+      }
+    })()
+  }, 5000)
+}
+
 // ---- 布局偏好：侧栏折叠/宽度、批注面板宽度（localStorage 持久化） ----
 const LAYOUT_KEY = 'awesome-notes-layout'
 export const SIDEBAR_MIN_W = 180
@@ -193,6 +227,8 @@ interface State {
   closeTab(id: string): void
   /** 固定标签（双击标签名，等效文件树双击） */
   pinTab(id: string): void
+  /** 拖拽排序：把 fromId 标签移动到 toId 之前/之后（toId 为空则移到末尾） */
+  reorderTabs(fromId: string, toId: string | null, position: 'before' | 'after'): void
   patchActiveTab(patch: Partial<DocTab>): void
 
   setFilter(f: string): void
@@ -460,6 +496,7 @@ export const useStore = create<State>((set, get) => ({
     const settings = get().settings
     applyAppearance(settings)
     set({ annPanelOpen: settings.annPanelDefaultOpen })
+    startActiveDocWatcher()
     try {
       const r = await api<{ projects: Project[] }>('GET', '/api/projects')
       const localProjects = r.projects ?? []
@@ -732,6 +769,17 @@ export const useStore = create<State>((set, get) => ({
 
   pinTab(id) {
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, pinned: true } : t)) }))
+  },
+
+  reorderTabs(fromId, toId, position) {
+    const tabs = [...get().tabs]
+    const from = tabs.findIndex((t) => t.id === fromId)
+    if (from < 0) return
+    const [moved] = tabs.splice(from, 1)
+    let to = toId ? tabs.findIndex((t) => t.id === toId) : tabs.length - 1
+    if (to < 0) to = tabs.length - 1
+    tabs.splice(position === 'after' ? to + 1 : to, 0, moved)
+    set({ tabs })
   },
 
   patchActiveTab(patch) {
