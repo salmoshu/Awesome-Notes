@@ -254,12 +254,12 @@ export default function AnnotationPanel() {
   /** 批量复制：当前文档全部标注（格式化，可直接交给 agent） */
   const copyAllAnnotations = async (): Promise<void> => {
     if (!project || annotations.length === 0) return
-    const annFile = `${project.path}\\.awesome-notes\\annotations.json`
+    const annFile = `${project.path}\\.timber\\annotations.json`
     const body = annotations
       .map((a, i) =>
         [
           `## 标注 ${i + 1}（${ANNOTATION_KIND_LABELS[kindOf(a)]} · ${a.status === 'open' ? '待处理' : '已完成'}）`,
-          `链接: awesome-notes://${project.name}/${a.doc}#${a.id}`,
+          `链接: timber://${project.name}/${a.doc}#${a.id}`,
           `文档: ${project.path}\\${a.doc.replace(/\//g, '\\')}`,
           `标注ID: ${a.id}`,
           `引用: ${a.quote}`,
@@ -268,7 +268,7 @@ export default function AnnotationPanel() {
       )
       .join('\n\n')
     const text = [
-      `[Awesome-Notes 标注任务 · ${project.name} / ${activeDoc?.path ?? ''} · 共 ${annotations.length} 条]`,
+      `[Timber 标注任务 · ${project.name} / ${activeDoc?.path ?? ''} · 共 ${annotations.length} 条]`,
       `标注库: ${annFile}`,
       '',
       body
@@ -279,7 +279,7 @@ export default function AnnotationPanel() {
 
   const copyAnnFileAddress = async (): Promise<void> => {
     if (!project) return
-    const annFile = `${project.path}\\.awesome-notes\\annotations.json`
+    const annFile = `${project.path}\\.timber\\annotations.json`
     await navigator.clipboard.writeText(annFile)
     toast('ok', '标注库地址已复制')
   }
@@ -289,10 +289,10 @@ export default function AnnotationPanel() {
   const copyAnnAddress = async (a: Annotation) => {
     if (!project) return
     const absDoc = `${project.path}\\${a.doc.replace(/\//g, '\\')}`
-    const annFile = `${project.path}\\.awesome-notes\\annotations.json`
+    const annFile = `${project.path}\\.timber\\annotations.json`
     const text = [
-      '[Awesome-Notes 标注任务]',
-      `链接: awesome-notes://${project.name}/${a.doc}#${a.id}`,
+      '[Timber 标注任务]',
+      `链接: timber://${project.name}/${a.doc}#${a.id}`,
       `文档: ${absDoc}`,
       `标注库: ${annFile}`,
       `标注ID: ${a.id}`,

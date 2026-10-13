@@ -1,4 +1,4 @@
-module awesome-notes/sidecar
+module timber/sidecar
 
 go 1.23
 

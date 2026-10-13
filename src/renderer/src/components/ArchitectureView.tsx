@@ -1,0 +1,209 @@
+// 架构视图：快照 / 对比（delta）两种模式，archify HTML 经 iframe 呈现
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ArchRefs } from '@shared/types'
+import { archRefs } from '../api'
+import { apiCallFor, useStore } from '../store'
+
+type Mode = 'snapshot' | 'delta'
+
+/** arch/spec 错误码 → 空态文案 */
+const ARCH_ERROR_TEXTS: Record<string, string> = {
+  'no-commits': '该仓库暂无提交，无法生成架构快照',
+  'no-source': '未找到可分析的源码文件（支持 ts/js/go/py/rs/java 等）',
+  'not-a-repo': '当前项目不是 Git 仓库'
+}
+
+function archErrorText(code: string): string {
+  return ARCH_ERROR_TEXTS[code] ?? `架构分析失败：${code}`
+}
+
+export default function ArchitectureView() {
+  const activeProjectId = useStore((s) => s.activeProjectId)
+  const ensureArchSpec = useStore((s) => s.ensureArchSpec)
+  const archHtmlCache = useStore((s) => s.archHtmlCache)
+  const archDeltaRequest = useStore((s) => s.archDeltaRequest)
+
+  const [refs, setRefs] = useState<ArchRefs | null>(null)
+  const [mode, setMode] = useState<Mode>('snapshot')
+  const [snapRef, setSnapRef] = useState('HEAD')
+  // 对比模式默认「选中提交 → HEAD」
+  const [baseRef, setBaseRef] = useState(() => useStore.getState().selectedSha ?? 'HEAD~1')
+  const [headRef, setHeadRef] = useState('HEAD')
+  const [html, setHtml] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // 可选 ref 清单（HEAD + branches + tags）
+  useEffect(() => {
+    if (!activeProjectId) return
+    archRefs(activeProjectId, apiCallFor(activeProjectId))
+      .then(setRefs)
+      .catch(() => setRefs(null))
+  }, [activeProjectId])
+
+  // 历史详情「查看架构对比」跳入：消费 delta 请求参数
+  useEffect(() => {
+    if (!archDeltaRequest) return
+    setMode('delta')
+    setBaseRef(archDeltaRequest.base)
+    setHeadRef(archDeltaRequest.head)
+    useStore.setState({ archDeltaRequest: null })
+  }, [archDeltaRequest])
+
+  // ref 下拉选项（对比模式的 head 默认跟随选中提交）
+  const refOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [{ value: 'HEAD', label: 'HEAD' }]
+    for (const b of refs?.branches ?? []) opts.push({ value: b.name, label: `分支 ${b.name}` })
+    for (const t of refs?.tags ?? []) opts.push({ value: t.name, label: `标签 ${t.name}` })
+    return opts
+  }, [refs])
+
+  // 加载代际：跳入 delta 等场景会先发起来旧参数的快照加载，后到者不得覆盖新结果
+  const loadSeq = useRef(0)
+  const load = useCallback(
+    async (bustCache: boolean) => {
+      const seq = ++loadSeq.current
+      const stale = (): boolean => seq !== loadSeq.current
+      const id = activeProjectId
+      if (!id) return
+      const b = window.timber
+      if (!b) {
+        setError('架构渲染需要 Electron 环境')
+        return
+      }
+      setLoading(true)
+      setError(null)
+      const key = mode === 'snapshot' ? `${id}:${snapRef}` : `${id}:${baseRef}..${headRef}`
+      try {
+        const cached = bustCache ? undefined : useStore.getState().archHtmlCache.get(key)
+        if (cached) {
+          if (!stale()) setHtml(cached)
+          return
+        }
+        let result: { ok: boolean; html?: string; error?: string }
+        if (mode === 'snapshot') {
+          const r = await ensureArchSpec(snapRef)
+          if (stale()) return
+          if (!r.ok) {
+            setError(archErrorText(r.error))
+            setHtml(null)
+            return
+          }
+          result = await b.archRender(JSON.stringify(r.spec), key)
+        } else {
+          const [baseR, headR] = await Promise.all([ensureArchSpec(baseRef), ensureArchSpec(headRef)])
+          if (stale()) return
+          if (!baseR.ok) {
+            setError(archErrorText(baseR.error))
+            setHtml(null)
+            return
+          }
+          if (!headR.ok) {
+            setError(archErrorText(headR.error))
+            setHtml(null)
+            return
+          }
+          result = await b.archDelta(JSON.stringify(baseR.spec), JSON.stringify(headR.spec), key)
+        }
+        if (stale()) return
+        if (!result.ok || !result.html) {
+          setError(archErrorText(result.error ?? 'unknown'))
+          setHtml(null)
+          return
+        }
+        // 写入 store HTML 缓存（不可变更新）
+        const next = new Map(useStore.getState().archHtmlCache)
+        next.set(key, result.html)
+        useStore.setState({ archHtmlCache: next })
+        setHtml(result.html)
+      } catch (err) {
+        if (!stale()) {
+          setError(String(err))
+          setHtml(null)
+        }
+      } finally {
+        if (!stale()) setLoading(false)
+      }
+    },
+    [activeProjectId, mode, snapRef, baseRef, headRef, ensureArchSpec]
+  )
+
+  // 参数变化时自动加载（缓存命中即时呈现）
+  useEffect(() => {
+    void load(false)
+  }, [load])
+
+  // 刷新：同时丢弃 store 中对应 HTML 缓存
+  const refresh = (): void => {
+    const id = activeProjectId
+    if (id) {
+      const key = mode === 'snapshot' ? `${id}:${snapRef}` : `${id}:${baseRef}..${headRef}`
+      const next = new Map(archHtmlCache)
+      next.delete(key)
+      useStore.setState({ archHtmlCache: next })
+    }
+    void load(true)
+  }
+
+  if (!activeProjectId) return <div className="hv-empty">请先在左侧选择项目</div>
+
+  return (
+    <div className="arch-view">
+      <div className="av-toolbar">
+        <div className="av-mode seg">
+          <button className={mode === 'snapshot' ? 'active' : ''} onClick={() => setMode('snapshot')}>
+            快照
+          </button>
+          <button className={mode === 'delta' ? 'active' : ''} onClick={() => setMode('delta')}>
+            对比
+          </button>
+        </div>
+        {mode === 'snapshot' ? (
+          <label className="av-field">
+            快照 ref
+            <select value={snapRef} onChange={(e) => setSnapRef(e.target.value)}>
+              {refOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <>
+            <label className="av-field">
+              基准
+              <select value={baseRef} onChange={(e) => setBaseRef(e.target.value)}>
+                {refOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+                {/* sha 等非清单值（历史跳入/选中提交）补一个显示项 */}
+                {!refOptions.some((o) => o.value === baseRef) && (
+                  <option value={baseRef}>{baseRef.slice(0, 7)}</option>
+                )}
+              </select>
+            </label>
+            <span className="av-arrow">→</span>
+            <label className="av-field">
+              目标
+              <select value={headRef} onChange={(e) => setHeadRef(e.target.value)}>
+                {refOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+                {!refOptions.some((o) => o.value === headRef) && (
+                  <option value={headRef}>{headRef.slice(0, 7)}</option>
+                )}
+              </select>
+            </label>
+          </>
+        )}
+        <button className="av-refresh" onClick={refresh} title="重新渲染（丢弃缓存）">⟳</button>
+      </div>
+      <div className="av-body">
+        {loading && <div className="hv-loading">架构图渲染中…</div>}
+        {!loading && error && <div className="hv-empty">{error}</div>}
+        {!loading && !error && html && (
+          <iframe className="av-frame" sandbox="allow-scripts" srcDoc={html} title="架构图" />
+        )}
+      </div>
+    </div>
+  )
+}

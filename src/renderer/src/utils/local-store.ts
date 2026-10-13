@@ -1,8 +1,8 @@
 // 客户端本地的个性化数据：项目别名 / 项目屏蔽 / 文档与文件夹屏蔽。
 // 这些是“阅读偏好”而非项目数据，随应用（localStorage）持久化，不落 sidecar。
-const ALIAS_PREFIX = 'awesome-notes-alias:'
-const BLOCKED_DOCS_PREFIX = 'awesome-notes-blocked:'
-const HIDDEN_PROJECTS_KEY = 'awesome-notes-hidden-projects'
+const ALIAS_PREFIX = 'timber-alias:'
+const BLOCKED_DOCS_PREFIX = 'timber-blocked:'
+const HIDDEN_PROJECTS_KEY = 'timber-hidden-projects'
 
 function readJSON<T>(key: string, fallback: T): T {
   try {

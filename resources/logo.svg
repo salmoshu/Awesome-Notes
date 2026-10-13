@@ -1,38 +1,57 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Awesome-Notes 应用图标（风格对齐 Awesome-Resume：紫渐变底 + 白卡片 + 徽章） -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8B5CF6" />
-      <stop offset="0.55" stop-color="#7C3AED" />
-      <stop offset="1" stop-color="#6D28D9" />
+    <linearGradient id="timber-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1C2B22"/>
+      <stop offset="1" stop-color="#0E1712"/>
     </linearGradient>
+    <radialGradient id="timber-core" cx="0.47" cy="0.52" r="0.62">
+      <stop offset="0" stop-color="#E9C08A"/>
+      <stop offset="0.55" stop-color="#D9A76A"/>
+      <stop offset="1" stop-color="#B9834C"/>
+    </radialGradient>
   </defs>
 
   <!-- 底板 -->
-  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)" />
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#timber-bg)"/>
 
-  <!-- 白色卡片（投影） -->
-  <rect x="126" y="112" width="260" height="288" rx="34" fill="#5B21B6" opacity="0.35" />
-  <rect x="118" y="102" width="260" height="288" rx="34" fill="#FFFFFF" />
+  <!-- 树桩横截面：年轮 = 项目的每一次提交 -->
+  <g transform="translate(256 262) scale(1 0.965)">
+    <!-- 树皮 -->
+    <circle r="206" fill="#4A2F1B"/>
+    <circle r="206" fill="none" stroke="#5C3B22" stroke-width="6"/>
+    <!-- 边材 -->
+    <circle r="188" fill="#E5CEA6"/>
+    <!-- 心材底色 -->
+    <circle r="172" fill="url(#timber-core)"/>
 
-  <!-- 左上圆点（呼应头像位） -->
-  <circle cx="168" cy="152" r="21" fill="#7C3AED" />
+    <!-- 年轮（深线/浅线交替） -->
+    <g fill="none" stroke-linecap="round">
+      <circle r="150" stroke="#A9713B" stroke-width="5" opacity="0.85"/>
+      <circle r="138" stroke="#C98F52" stroke-width="2.6" opacity="0.8"/>
+      <circle r="121" stroke="#A9713B" stroke-width="4.4" opacity="0.85"/>
+      <circle r="109" stroke="#C98F52" stroke-width="2.4" opacity="0.8"/>
+      <circle r="93"  stroke="#A96B37" stroke-width="4"   opacity="0.85"/>
+      <circle r="81"  stroke="#C98F52" stroke-width="2.2" opacity="0.8"/>
+      <circle r="66"  stroke="#A96633" stroke-width="0" opacity="0"/>
+      <circle r="66"  stroke="#A96633" stroke-width="3.6" opacity="0.9"/>
+      <circle r="54"  stroke="#C9894C" stroke-width="2"   opacity="0.8"/>
+      <circle r="40"  stroke="#A96633" stroke-width="3.2" opacity="0.9"/>
+      <circle r="29"  stroke="#C9894C" stroke-width="1.8" opacity="0.85"/>
+      <circle r="17"  stroke="#A96633" stroke-width="2.8" opacity="0.95"/>
+    </g>
 
-  <!-- 文字条 -->
-  <rect x="202" y="141" width="106" height="20" rx="10" fill="#C4B5FD" />
-  <rect x="154" y="196" width="188" height="16" rx="8" fill="#DDD6FE" />
-  <rect x="154" y="232" width="188" height="16" rx="8" fill="#DDD6FE" />
-  <!-- 批注高亮条（琥珀） -->
-  <rect x="150" y="270" width="196" height="26" rx="13" fill="#FBBF24" />
-  <rect x="154" y="322" width="150" height="16" rx="8" fill="#DDD6FE" />
-  <rect x="154" y="356" width="106" height="16" rx="8" fill="#DDD6FE" />
+    <!-- 髓心 -->
+    <circle r="7" fill="#8A5227"/>
 
-  <!-- 右下徽章：白圆 + 紫笔尖 -->
-  <circle cx="352" cy="360" r="52" fill="#FFFFFF" />
-  <circle cx="352" cy="360" r="52" fill="none" stroke="#EDE9FE" stroke-width="4" />
-  <g transform="translate(352 360)">
-    <path d="M -14 -20 L 6 -20 A 8 8 0 0 1 14 -12 L 14 6 A 8 8 0 0 1 6 14 L -6 14 A 8 8 0 0 1 -14 6 Z" fill="#7C3AED" />
-    <polygon points="-7,8 7,8 0,22" fill="#7C3AED" />
-    <circle cx="0" cy="2" r="3" fill="#FFFFFF" />
+    <!-- 裂纹（两道，从外向内，不到髓心） -->
+    <path d="M 40 -168 L 30 -108 L 36 -62" fill="none" stroke="#7C4820" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+    <path d="M 132 118 L 86 76 L 52 58" fill="none" stroke="#7C4820" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>
+
+    <!-- 木节 -->
+    <ellipse cx="-96" cy="-88" rx="20" ry="14" fill="#9C5E2E" transform="rotate(-24 -96 -88)"/>
+    <ellipse cx="-96" cy="-88" rx="11" ry="7"  fill="#7C4820" transform="rotate(-24 -96 -88)"/>
   </g>
+
+  <!-- 顶部高光，增加体积感 -->
+  <ellipse cx="256" cy="150" rx="150" ry="46" fill="#FFFFFF" opacity="0.06"/>
 </svg>

@@ -26,7 +26,7 @@ type Annotation struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// annotationFile 一个项目的批注库，落在 <项目>/.awesome-notes/annotations.json。
+// annotationFile 一个项目的批注库，落在 <项目>/.timber/annotations.json。
 type annotationFile struct {
 	Version int                      `json:"version"`
 	Docs    map[string][]*Annotation `json:"docs"`
@@ -39,11 +39,24 @@ type annotationStore struct {
 func newAnnotationStore() *annotationStore { return &annotationStore{} }
 
 func annFilePath(projectPath string) string {
-	return filepath.Join(projectPath, ".awesome-notes", "annotations.json")
+	return filepath.Join(projectPath, ".timber", "annotations.json")
+}
+
+// migrateLegacyDir 一次性迁移：Awesome-Notes 时代的 .awesome-notes/ → .timber/。
+func migrateLegacyDir(projectPath string) {
+	newDir := filepath.Join(projectPath, ".timber")
+	oldDir := filepath.Join(projectPath, ".awesome-notes")
+	if _, err := os.Stat(newDir); err == nil {
+		return
+	}
+	if _, err := os.Stat(oldDir); err == nil {
+		_ = os.Rename(oldDir, newDir)
+	}
 }
 
 func (s *annotationStore) load(projectPath string) (*annotationFile, error) {
 	f := &annotationFile{Version: 1, Docs: map[string][]*Annotation{}}
+	migrateLegacyDir(projectPath)
 	data, err := os.ReadFile(annFilePath(projectPath))
 	if os.IsNotExist(err) {
 		return f, nil

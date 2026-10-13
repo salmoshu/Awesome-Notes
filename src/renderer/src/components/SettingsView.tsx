@@ -19,7 +19,7 @@ export default function SettingsView() {
   const [section, setSection] = useState<Section>('appearance')
 
   // ---- 版本区状态 ----
-  const bridge = window.awesomeNotes
+  const bridge = window.timber
   const [appVersion, setAppVersion] = useState('')
   const [updaterState, setUpdaterState] = useState<UpdateStatusEvent | null>(null)
   const [updaterPrefs, setUpdaterPrefs] = useState<UpdaterPrefs>(loadUpdaterPrefs)

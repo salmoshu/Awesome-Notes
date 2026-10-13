@@ -1,0 +1,203 @@
+// 代码视图：左侧源码文件树（搜索过滤），右侧 highlight.js 只读阅读器（行号、等宽、主题跟随）
+import { useEffect, useMemo, useRef, useState } from 'react'
+import hljs from 'highlight.js/lib/common'
+import type { DocNode } from '@shared/types'
+import { apiFor, origProjectId, rawBaseFor, useStore } from '../store'
+
+/** 源码 + 文本扩展名（树请求参数；沿用契约源码集合） */
+const CODE_EXTS = [
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.go', '.py', '.rs', '.java', '.kt',
+  '.vue', '.svelte', '.c', '.cc', '.cpp', '.h', '.hpp', '.cs', '.rb', '.php', '.swift',
+  '.scala', '.sh', '.ps1', '.css', '.scss', '.html',
+  '.md', '.markdown', '.txt', '.json', '.yaml', '.yml', '.toml', '.xml', '.csv', '.log'
+]
+
+/** 扩展名 → highlight.js 语言名（common 包内；未知扩展按纯文本） */
+const LANG_BY_EXT: Record<string, string> = {
+  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript',
+  cjs: 'javascript', go: 'go', py: 'python', rs: 'rust', java: 'java', kt: 'kotlin',
+  c: 'c', cc: 'cpp', cpp: 'cpp', h: 'c', hpp: 'cpp', cs: 'csharp', rb: 'ruby',
+  php: 'php', swift: 'swift', scala: 'scala', sh: 'bash', ps1: 'powershell',
+  css: 'css', scss: 'scss', html: 'xml', vue: 'xml', svelte: 'xml',
+  md: 'markdown', markdown: 'markdown', json: 'json', yaml: 'yaml', yml: 'yaml',
+  toml: 'ini', xml: 'xml', csv: 'plaintext', txt: 'plaintext', log: 'plaintext'
+}
+
+/** 超大文件截断（highlight 与行号渲染开销保护） */
+const MAX_BYTES = 512 * 1024
+
+/** 递归收集树中的文件节点（带搜索过滤；目录保留有命中的分支） */
+function filterTree(node: DocNode, kw: string): DocNode | null {
+  if (node.type === 'doc') {
+    if (kw && !node.path.toLowerCase().includes(kw)) return null
+    return node
+  }
+  const children = (node.children ?? [])
+    .map((c) => filterTree(c, kw))
+    .filter((c): c is DocNode => c !== null)
+  if (children.length === 0 && kw && !node.name.toLowerCase().includes(kw)) return null
+  if (children.length === 0 && node.type === 'dir') return node
+  return { ...node, children }
+}
+
+function TreeNode({ node, depth }: { node: DocNode; depth: number }) {
+  const codeFile = useStore((s) => s.codeFile)
+  const [open, setOpen] = useState(depth < 2)
+  if (node.type === 'doc') {
+    return (
+      <div
+        className={`cv-file ${codeFile === node.path ? 'active' : ''}`}
+        style={{ paddingLeft: 10 + depth * 14 }}
+        onClick={() => useStore.setState({ codeFile: node.path })}
+      >
+        {node.name}
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div
+        className="cv-dir"
+        style={{ paddingLeft: 10 + depth * 14 }}
+        onClick={() => setOpen(!open)}
+      >
+        <span className={`cv-arrow ${open ? 'open' : ''}`}>▸</span>
+        {node.name}
+      </div>
+      {open && (node.children ?? []).map((c) => <TreeNode key={c.path} node={c} depth={depth + 1} />)}
+    </div>
+  )
+}
+
+export default function CodeView() {
+  const activeProjectId = useStore((s) => s.activeProjectId)
+  const codeFile = useStore((s) => s.codeFile)
+  const [tree, setTree] = useState<DocNode | null>(null)
+  const [filter, setFilter] = useState('')
+  const [content, setContent] = useState<string | null>(null)
+  const [truncated, setTruncated] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const codeRef = useRef<HTMLDivElement | null>(null)
+
+  // 源码文件树（独立于文档树：扩展名集合不同）
+  useEffect(() => {
+    if (!activeProjectId) return
+    apiFor<DocNode>(activeProjectId)(
+      'GET',
+      `/api/projects/${activeProjectId}/tree?exts=${encodeURIComponent(CODE_EXTS.join(','))}`
+    )
+      .then(setTree)
+      .catch(() => setTree(null))
+  }, [activeProjectId])
+
+  // codeFile 变化：经 /raw 拉取原文（远程项目走远端 base），滚到顶
+  useEffect(() => {
+    if (!activeProjectId || !codeFile) {
+      setContent(null)
+      return
+    }
+    let disposed = false
+    setLoading(true)
+    setError(null)
+    void (async () => {
+      try {
+        const base = await rawBaseFor(activeProjectId)
+        const url = `${base}/raw/${origProjectId(activeProjectId)}/${codeFile
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}`
+        const r = await fetch(url)
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        let text = await r.text()
+        const over = text.length > MAX_BYTES
+        if (over) text = text.slice(0, MAX_BYTES)
+        if (!disposed) {
+          setContent(text)
+          setTruncated(over)
+          setLoading(false)
+          if (codeRef.current) codeRef.current.scrollTop = 0
+        }
+      } catch (err) {
+        if (!disposed) {
+          setError(String(err))
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [activeProjectId, codeFile])
+
+  const shownTree = useMemo(() => {
+    if (!tree) return null
+    return filterTree(tree, filter.trim().toLowerCase())
+  }, [tree, filter])
+
+  // 语法高亮（失败回退转义纯文本）
+  const highlighted = useMemo(() => {
+    if (content === null || !codeFile) return null
+    const ext = (codeFile.split('.').pop() ?? '').toLowerCase()
+    const lang = LANG_BY_EXT[ext]
+    try {
+      if (lang && hljs.getLanguage(lang)) return hljs.highlight(content, { language: lang }).value
+      return hljs.highlightAuto(content).value
+    } catch {
+      return null
+    }
+  }, [content, codeFile])
+
+  const lines = useMemo(() => {
+    if (content === null) return ''
+    const count = content.split('\n').length
+    let s = ''
+    for (let i = 1; i <= count; i++) s += (i > 1 ? '\n' : '') + i
+    return s
+  }, [content])
+
+  if (!activeProjectId) return <div className="hv-empty">请先在左侧选择项目</div>
+
+  return (
+    <div className="code-view">
+      <div className="cv-tree">
+        <div className="cv-search">
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="搜索文件…"
+          />
+        </div>
+        <div className="cv-nodes">
+          {shownTree?.children?.map((c) => <TreeNode key={c.path} node={c} depth={0} />)}
+          {shownTree && (shownTree.children ?? []).length === 0 && (
+            <div className="hv-empty">无匹配文件</div>
+          )}
+        </div>
+      </div>
+      <div className="cv-code" ref={codeRef}>
+        {!codeFile && <div className="hv-empty">从左侧选择文件，或在历史详情中点击变更文件</div>}
+        {codeFile && loading && <div className="hv-loading">加载中…</div>}
+        {codeFile && !loading && error && <div className="hv-empty">文件加载失败：{error}</div>}
+        {codeFile && !loading && !error && content !== null && (
+          <div className="cv-scroll">
+            {truncated && <div className="cv-truncated">文件过大，仅显示前 512 KB</div>}
+            {/* 行号列 + 高亮代码块同行并排（同字号行高天然对齐） */}
+            <div className="cv-pre">
+              <pre className="cv-gutter">{lines}</pre>
+              {highlighted !== null ? (
+                <pre
+                  className="cv-content hljs"
+                  // hljs 输出的 HTML（span 包裹的转义内容）
+                  dangerouslySetInnerHTML={{ __html: highlighted }}
+                />
+              ) : (
+                <pre className="cv-content">{content}</pre>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

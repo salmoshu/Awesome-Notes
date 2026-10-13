@@ -7,10 +7,10 @@ import { fsList, type FsEntry, type LogLine } from '../utils/remote'
 type Mode = 'choose' | 'kind' | 'config' | 'connecting' | 'browse'
 
 const KIND_CARDS: Record<RemoteKind, { icon: string; name: string; desc: string }> = {
-  wsl: { icon: '🐧', name: 'WSL', desc: '选择已安装的发行版，自动部署 notesd 并接入' },
-  ssh: { icon: '🔐', name: 'SSH', desc: '填写主机与凭据，自动部署 notesd 并建立端口转发' },
-  docker: { icon: '🐳', name: 'Docker', desc: '连接容器内已运行的 notesd（docker run -p <端口>:37123）' },
-  custom: { icon: '🌐', name: '自定义', desc: '连接任意可达的 notesd 地址（host:port + 令牌）' }
+  wsl: { icon: '🐧', name: 'WSL', desc: '选择已安装的发行版，自动部署 timberd 并接入' },
+  ssh: { icon: '🔐', name: 'SSH', desc: '填写主机与凭据，自动部署 timberd 并建立端口转发' },
+  docker: { icon: '🐳', name: 'Docker', desc: '连接容器内已运行的 timberd（docker run -p <端口>:37123）' },
+  custom: { icon: '🌐', name: '自定义', desc: '连接任意可达的 timberd 地址（host:port + 令牌）' }
 }
 
 /** 添加项目：本地文件夹，或 zcode 式远程连接向导（选方式 → 配置 → 连接日志 → 选远程目录） */
@@ -173,8 +173,8 @@ export default function AddProjectDialog() {
   }
 
   const onPickLocal = async (): Promise<void> => {
-    if (window.awesomeNotes) {
-      const path = await window.awesomeNotes.selectFolder()
+    if (window.timber) {
+      const path = await window.timber.selectFolder()
       if (path) {
         await importProject(path)
         closeAddProject()
@@ -210,14 +210,14 @@ export default function AddProjectDialog() {
             <button className="rd-choice" onClick={() => setMode('kind')}>
               <span className="rd-choice-icon">🌐</span>
               <span className="rd-choice-name">远程连接</span>
-              <span className="rd-choice-desc">WSL / SSH 自动接入，Docker / 自定义 notesd 直连</span>
+              <span className="rd-choice-desc">WSL / SSH 自动接入，Docker / 自定义 timberd 直连</span>
             </button>
           </div>
         )}
 
         {mode === 'kind' && (
           <>
-            <div className="rd-sub">选择连接方式（WSL / SSH 会自动部署 notesd 到远端）</div>
+            <div className="rd-sub">选择连接方式（WSL / SSH 会自动部署 timberd 到远端）</div>
             <div className="rd-choose">
               {(Object.keys(KIND_CARDS) as RemoteKind[]).map((k) => (
                 <button
@@ -383,7 +383,7 @@ export default function AddProjectDialog() {
                     <input
                       value={token}
                       onChange={(e) => setToken(e.target.value)}
-                      placeholder="访问令牌（X-Notes-Token）"
+                      placeholder="访问令牌（X-Timber-Token）"
                       spellCheck={false}
                     />
                   </label>
@@ -391,9 +391,9 @@ export default function AddProjectDialog() {
               )}
 
               {kind === 'docker' && (
-                <div className="rd-tip">容器内运行 notesd 并映射端口：docker run -p &lt;端口&gt;:37123 …，此处连接映射后的端口</div>
+                <div className="rd-tip">容器内运行 timberd 并映射端口：docker run -p &lt;端口&gt;:37123 …，此处连接映射后的端口</div>
               )}
-              {kind === 'ssh' && <div className="rd-tip">凭据仅保存在本机 localStorage；远端需为 Linux，将自动部署 notesd</div>}
+              {kind === 'ssh' && <div className="rd-tip">凭据仅保存在本机 localStorage；远端需为 Linux，将自动部署 timberd</div>}
 
               <button className="btn-primary rd-connect" type="submit" disabled={!configValid}>
                 连接

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ApiInfo, AwesomeNotesBridge, UpdateStatusEvent } from '@shared/types'
+import type { ApiInfo, TimberBridge, UpdateStatusEvent } from '@shared/types'
 
-const bridge: AwesomeNotesBridge = {
+const bridge: TimberBridge = {
   getApiInfo: () => ipcRenderer.invoke('api:info'),
   selectFolder: () => ipcRenderer.invoke('dialog:select-folder'),
   revealPath: (p: string) => ipcRenderer.invoke('shell:reveal', p),
@@ -41,7 +41,10 @@ const bridge: AwesomeNotesBridge = {
     const listener = (_e: Electron.IpcRendererEvent, info: ApiInfo) => cb(info)
     ipcRenderer.on('api-info-changed', listener)
     return () => ipcRenderer.removeListener('api-info-changed', listener)
-  }
+  },
+  archRender: (specJson, cacheKey) => ipcRenderer.invoke('arch:render', specJson, cacheKey),
+  archDelta: (baseJson, headJson, cacheKey) =>
+    ipcRenderer.invoke('arch:delta', baseJson, headJson, cacheKey)
 }
 
-contextBridge.exposeInMainWorld('awesomeNotes', bridge)
+contextBridge.exposeInMainWorld('timber', bridge)

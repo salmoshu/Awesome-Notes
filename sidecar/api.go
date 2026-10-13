@@ -41,6 +41,10 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/projects/{id}/annotations-file", s.auth(s.handleAnnotationFile))
 	mux.HandleFunc("GET /api/projects/{id}/git/status", s.auth(s.handleGitStatus))
 	mux.HandleFunc("GET /api/projects/{id}/git/diff", s.auth(s.handleGitDiff))
+	mux.HandleFunc("GET /api/projects/{id}/git/log", s.auth(s.handleGitLog))
+	mux.HandleFunc("GET /api/projects/{id}/git/show/{sha}", s.auth(s.handleGitShow))
+	mux.HandleFunc("GET /api/projects/{id}/arch/refs", s.auth(s.handleArchRefs))
+	mux.HandleFunc("GET /api/projects/{id}/arch/spec", s.auth(s.handleArchSpec))
 	mux.HandleFunc("GET /api/wsl/distros", s.auth(s.handleWslDistros))
 	mux.HandleFunc("GET /api/wsl/home", s.auth(s.handleWslHome))
 	mux.HandleFunc("GET /api/fs/list", s.auth(s.handleFsList))
@@ -62,13 +66,13 @@ func (s *server) routes(mux *http.ServeMux) {
 func (s *server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Notes-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Timber-Token")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(204)
 			return
 		}
-		if r.Header.Get("X-Notes-Token") != s.token {
+		if r.Header.Get("X-Timber-Token") != s.token {
 			writeError(w, 401, "缺少或错误的访问令牌")
 			return
 		}
@@ -220,7 +224,7 @@ func (s *server) handleWriteDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 原子写入：tmp + rename
-	tmp := abs + ".awesome-notes.tmp"
+	tmp := abs + ".timber.tmp"
 	if err := os.WriteFile(tmp, []byte(req.Content), 0o644); err != nil {
 		writeError(w, 500, err.Error())
 		return

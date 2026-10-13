@@ -1,12 +1,12 @@
 package main
 
-// remote.go：zcode 式远程接入 —— 把 linux 版 notesd 自动部署到 WSL 发行版 / SSH 远端并启动，
-// 之后客户端按普通 notesd 远程连接使用。进度以 NDJSON 流式回传（连接中日志面板）。
+// remote.go：zcode 式远程接入 —— 把 linux 版 timberd 自动部署到 WSL 发行版 / SSH 远端并启动，
+// 之后客户端按普通 timberd 远程连接使用。进度以 NDJSON 流式回传（连接中日志面板）。
 //
 // 关键设计：WSL 会话语义会杀死 wsl.exe 退出后的后台进程（nohup/setsid 均无效），
-// 因此远端 notesd 以「前台子进程」形式运行，生命周期由 sidecar 持有：
-//   - WSL：sidecar 常驻一个 wsl.exe 子进程（notesd 在其内前台运行），就绪行直接读 stdout
-//   - SSH：notesd 跑在保活的 ssh 会话里（该连接同时承载 127.0.0.1 端口转发）
+// 因此远端 timberd 以「前台子进程」形式运行，生命周期由 sidecar 持有：
+//   - WSL：sidecar 常驻一个 wsl.exe 子进程（timberd 在其内前台运行），就绪行直接读 stdout
+//   - SSH：timberd 跑在保活的 ssh 会话里（该连接同时承载 127.0.0.1 端口转发）
 // 重连 = 重新 setup：二进制按 sha256 跳过重复上传，启动前按 token pkill 清理旧实例。
 
 import (
@@ -33,7 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const remoteDir = "$HOME/.awesome-notes"
+const remoteDir = "$HOME/.timber"
 
 var tokenRe = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
@@ -130,7 +130,7 @@ func (s *server) handleRemoteSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		res, err = s.setupSsh(ctx, lg, &req, req.Token)
 	default:
-		writeError(w, 400, "kind 仅支持 wsl / ssh（docker/custom 请直接连接已有 notesd 地址）")
+		writeError(w, 400, "kind 仅支持 wsl / ssh（docker/custom 请直接连接已有 timberd 地址）")
 		return
 	}
 
@@ -159,7 +159,7 @@ func (s *server) handleRemoteTeardown(w http.ResponseWriter, r *http.Request) {
 
 // ---- 部署阶段（WSL / SSH 共用）：架构探测 + 按 sha256 增量上传 ----
 
-const uploadScript = `mkdir -p ` + remoteDir + `/data && cat > ` + remoteDir + `/notesd.tmp && chmod 755 ` + remoteDir + `/notesd.tmp && mv -f ` + remoteDir + `/notesd.tmp ` + remoteDir + `/notesd`
+const uploadScript = `mkdir -p ` + remoteDir + `/data && cat > ` + remoteDir + `/timberd.tmp && chmod 755 ` + remoteDir + `/timberd.tmp && mv -f ` + remoteDir + `/timberd.tmp ` + remoteDir + `/timberd`
 
 func (s *server) deployBinary(ctx context.Context, lg *streamLogger, sh remoteShell) error {
 	unameOut, err := sh.run(ctx, "uname -sm")
@@ -176,12 +176,12 @@ func (s *server) deployBinary(ctx context.Context, lg *streamLogger, sh remoteSh
 	if err != nil {
 		return fmt.Errorf("读取部署二进制失败：%v", err)
 	}
-	remoteSum, _ := sh.run(ctx, "sha256sum "+remoteDir+"/notesd 2>/dev/null | cut -d' ' -f1")
+	remoteSum, _ := sh.run(ctx, "sha256sum "+remoteDir+"/timberd 2>/dev/null | cut -d' ' -f1")
 	if strings.TrimSpace(remoteSum) == localSum {
-		lg.log("deploy", "ok", "远端 notesd 已是最新，跳过上传")
+		lg.log("deploy", "ok", "远端 timberd 已是最新，跳过上传")
 		return nil
 	}
-	lg.log("deploy", "info", fmt.Sprintf("上传 notesd（%s，%.1f MB）…", filepath.Base(asset), sizeMB))
+	lg.log("deploy", "info", fmt.Sprintf("上传 timberd（%s，%.1f MB）…", filepath.Base(asset), sizeMB))
 	if err := sh.upload(ctx, asset); err != nil {
 		return fmt.Errorf("上传失败：%v", err)
 	}
@@ -202,9 +202,9 @@ func (s *server) assetFor(unameOut string) (string, error) {
 	var name string
 	switch machine {
 	case "x86_64", "amd64":
-		name = "notesd-linux-amd64"
+		name = "timberd-linux-amd64"
 	case "aarch64", "arm64":
-		name = "notesd-linux-arm64"
+		name = "timberd-linux-arm64"
 	default:
 		return "", fmt.Errorf("不支持的远端架构：%s", machine)
 	}
@@ -215,17 +215,17 @@ func (s *server) assetFor(unameOut string) (string, error) {
 	return p, nil
 }
 
-// pkillStale 清理同一 token 的旧 notesd 实例（上次运行残留；token 唯一，不会误伤他人）。
+// pkillStale 清理同一 token 的旧 timberd 实例（上次运行残留；token 唯一，不会误伤他人）。
 func pkillStale(ctx context.Context, sh remoteShell, token string) {
-	_, _ = sh.run(ctx, `pkill -f "notesd -addr 127.0.0.1:0 -token `+token+`" 2>/dev/null; true`)
+	_, _ = sh.run(ctx, `pkill -f "timberd -addr 127.0.0.1:0 -token `+token+`" 2>/dev/null; true`)
 }
 
-// startCmd 远端 notesd 前台命令（shell 展开 $HOME）。
+// startCmd 远端 timberd 前台命令（shell 展开 $HOME）。
 func startCmd(token string) string {
-	return remoteDir + `/notesd -addr 127.0.0.1:0 -token ` + token + ` -data ` + remoteDir + `/data`
+	return remoteDir + `/timberd -addr 127.0.0.1:0 -token ` + token + ` -data ` + remoteDir + `/data`
 }
 
-var readyRe = regexp.MustCompile(`NOTESD_READY port=(\d+)`)
+var readyRe = regexp.MustCompile(`TIMBERD_READY port=(\d+)`)
 
 // waitReady 从 stdout 流中读就绪行拿端口；超时/进程提前退出报错（附带 stderr 摘要）。
 func waitReady(stdout io.Reader, stderr *boundedBuf, timeout time.Duration) (int, error) {
@@ -252,7 +252,7 @@ func waitReady(stdout io.Reader, stderr *boundedBuf, timeout time.Duration) (int
 		}
 		return r.port, r.err
 	case <-time.After(timeout):
-		return 0, fmt.Errorf("等待 notesd 就绪超时（%s）；stderr: %s", timeout, firstLine(stderr.String()))
+		return 0, fmt.Errorf("等待 timberd 就绪超时（%s）；stderr: %s", timeout, firstLine(stderr.String()))
 	}
 }
 
@@ -285,7 +285,7 @@ func waitHealthy(ctx context.Context, probe func() (bool, bool, string)) error {
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
-	return fmt.Errorf("notesd 已启动但健康检查未通过")
+	return fmt.Errorf("timberd 已启动但健康检查未通过")
 }
 
 // ---- WSL ----
@@ -306,7 +306,7 @@ func (w *wslShell) upload(ctx context.Context, local string) error {
 	return err
 }
 
-// wslHandle：常驻 wsl.exe 子进程（notesd 在其会话内前台运行）。
+// wslHandle：常驻 wsl.exe 子进程（timberd 在其会话内前台运行）。
 type wslHandle struct{ cmd *exec.Cmd }
 
 func (h *wslHandle) close() {
@@ -341,7 +341,7 @@ func (s *server) setupWsl(ctx context.Context, lg *streamLogger, distro, token s
 	pkillStale(ctx, sh, token)
 
 	// 前台启动：wsl.exe 常驻为 sidecar 子进程（WSL 会话语义不允许脱离的后台进程）
-	lg.log("start", "info", "启动远端 notesd …")
+	lg.log("start", "info", "启动远端 timberd …")
 	cmd := exec.Command("wsl.exe", "-d", distro, "-e", "sh", "-c", startCmd(token))
 	hideWindow(cmd)
 	stdout, err := cmd.StdoutPipe()
@@ -363,13 +363,13 @@ func (s *server) setupWsl(ctx context.Context, lg *streamLogger, distro, token s
 	go io.Copy(io.Discard, stdout) // 持续排空，防管道写满
 
 	probe := func() (bool, bool, string) {
-		return probeNotesd(fmt.Sprintf("http://127.0.0.1:%d", port), token)
+		return probeTimberd(fmt.Sprintf("http://127.0.0.1:%d", port), token)
 	}
 	if err := waitHealthy(ctx, probe); err != nil {
 		handle.close()
 		return nil, err
 	}
-	lg.log("start", "ok", fmt.Sprintf("notesd 就绪（端口 %d）", port))
+	lg.log("start", "ok", fmt.Sprintf("timberd 就绪（端口 %d）", port))
 
 	connID := "rc-" + randHex(6)
 	s.remotes.add(connID, handle)
@@ -427,7 +427,7 @@ func (s *sshShell) upload(ctx context.Context, local string) error {
 	}
 }
 
-// sshHandle：保活会话（notesd 前台）+ 端口转发；close 级联关闭 client。
+// sshHandle：保活会话（timberd 前台）+ 端口转发；close 级联关闭 client。
 type sshHandle struct {
 	sess *ssh.Session
 	fwd  *sshForward
@@ -476,7 +476,7 @@ func (s *server) setupSsh(ctx context.Context, lg *streamLogger, req *setupReque
 	}
 	pkillStale(ctx, sh, token)
 
-	// 本地端口转发 → 远端 notesd 端口（目标端口待就绪后设定）
+	// 本地端口转发 → 远端 timberd 端口（目标端口待就绪后设定）
 	fwd := newSshForward(client)
 	localPort, err := fwd.start()
 	if err != nil {
@@ -484,8 +484,8 @@ func (s *server) setupSsh(ctx context.Context, lg *streamLogger, req *setupReque
 		return nil, fmt.Errorf("本地端口转发建立失败：%v", err)
 	}
 
-	// notesd 前台跑在保活会话里（连接断开即随之退出）
-	lg.log("start", "info", "启动远端 notesd …")
+	// timberd 前台跑在保活会话里（连接断开即随之退出）
+	lg.log("start", "info", "启动远端 timberd …")
 	sess, err := client.NewSession()
 	if err != nil {
 		fwd.close()
@@ -500,7 +500,7 @@ func (s *server) setupSsh(ctx context.Context, lg *streamLogger, req *setupReque
 	sess.Stderr = stderr
 	if err := sess.Start(startCmd(token)); err != nil {
 		fwd.close()
-		return nil, fmt.Errorf("启动远端 notesd 失败：%v", err)
+		return nil, fmt.Errorf("启动远端 timberd 失败：%v", err)
 	}
 	handle := &sshHandle{sess: sess, fwd: fwd}
 
@@ -513,13 +513,13 @@ func (s *server) setupSsh(ctx context.Context, lg *streamLogger, req *setupReque
 	fwd.setTarget(remotePort)
 
 	probe := func() (bool, bool, string) {
-		return probeNotesd(fmt.Sprintf("http://127.0.0.1:%d", localPort), token)
+		return probeTimberd(fmt.Sprintf("http://127.0.0.1:%d", localPort), token)
 	}
 	if err := waitHealthy(ctx, probe); err != nil {
 		handle.close()
 		return nil, err
 	}
-	lg.log("start", "ok", fmt.Sprintf("notesd 就绪（远端端口 %d）", remotePort))
+	lg.log("start", "ok", fmt.Sprintf("timberd 就绪（远端端口 %d）", remotePort))
 	lg.log("forward", "ok", fmt.Sprintf("端口转发：127.0.0.1:%d → 远端 127.0.0.1:%d", localPort, remotePort))
 
 	connID := "rc-" + randHex(6)
@@ -565,7 +565,7 @@ func sshAuthMethods(auth, password, keyPath string) ([]ssh.AuthMethod, error) {
 
 // ---- 就绪探测 ----
 
-func probeNotesd(base, token string) (healthOK, tokenOK bool, ver string) {
+func probeTimberd(base, token string) (healthOK, tokenOK bool, ver string) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	if code, body := httpGet(client, base+"/api/health", ""); code == 200 {
 		healthOK = true
@@ -583,7 +583,7 @@ func httpGet(client *http.Client, url, token string) (int, map[string]any) {
 		return 0, nil
 	}
 	if token != "" {
-		req.Header.Set("X-Notes-Token", token)
+		req.Header.Set("X-Timber-Token", token)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

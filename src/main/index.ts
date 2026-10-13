@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cpSync, existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { startSidecar, stopSidecar, setSidecarReadyListener } from './sidecar.js'
+import { renderArchHtml, compareArchDelta } from './archify.js'
 import { UpdateService, extractReleaseNotesSection } from './updater.js'
 import type { ApiInfo } from '@shared/types'
 
@@ -21,11 +22,22 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(async () => {
+    // userData 迁移：旧应用名 awesome-notes 的 sidecar-data 整体拷贝到新 userData
+    const dataDir = app.getPath('userData')
+    const oldDataDir = join(dirname(dataDir), 'awesome-notes', 'sidecar-data')
+    if (!existsSync(join(dataDir, 'sidecar-data', 'projects.json')) && existsSync(join(oldDataDir, 'projects.json'))) {
+      try {
+        cpSync(oldDataDir, join(dataDir, 'sidecar-data'), { recursive: true })
+        console.log('[migrate] 已从 awesome-notes 拷贝 sidecar-data')
+      } catch (err) {
+        console.error('[migrate] sidecar-data 迁移失败：', err)
+      }
+    }
     try {
       apiInfo = await startSidecar()
     } catch (err) {
       console.error('[sidecar] 启动失败：', err)
-      dialog.showErrorBox('Awesome-Notes 启动失败', String(err))
+      dialog.showErrorBox('Timber 启动失败', String(err))
     }
     createWindow()
     watchExternalPageStatus()
@@ -133,6 +145,12 @@ function createWindow(): void {
 
 // ---- IPC ----
 ipcMain.handle('api:info', () => apiInfo)
+
+// archify 架构图：渲染快照 / 对比 delta（结果缓存在 <userData>/arch）
+ipcMain.handle('arch:render', (_e, spec: string, key: string) => renderArchHtml(spec, key))
+ipcMain.handle('arch:delta', (_e, base: string, head: string, key: string) =>
+  compareArchDelta(base, head, key)
+)
 
 ipcMain.handle('dialog:select-folder', async () => {
   if (!mainWindow) return null

@@ -4,6 +4,9 @@ import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import Reader from './components/Reader'
 import AnnotationPanel from './components/AnnotationPanel'
+import HistoryView from './components/HistoryView'
+import ArchitectureView from './components/ArchitectureView'
+import CodeView from './components/CodeView'
 import Toasts from './components/Toasts'
 import UpdateCard from './components/UpdateCard'
 import SettingsView from './components/SettingsView'
@@ -12,7 +15,7 @@ import AddProjectDialog from './components/AddProjectDialog'
 import Logo from './components/Logo'
 
 export default function App() {
-  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage, settingsOpen, zenMode, zenPanel } = useStore()
+  const { init, ready, fatalError, annPanelOpen, activeDoc, extPageUrl, closeExtPage, settingsOpen, zenMode, zenPanel, view } = useStore()
 
   useEffect(() => {
     void init()
@@ -34,12 +37,12 @@ export default function App() {
   }, [])
 
   // 主进程拦截到的外链（导航 / window.open）转应用内浮层；浮层未挂载也能收到
-  useEffect(() => window.awesomeNotes?.onOpenExternalPage((url) => useStore.getState().openExtPage(url)), [])
+  useEffect(() => window.timber?.onOpenExternalPage((url) => useStore.getState().openExtPage(url)), [])
 
   // 标签快捷键（主进程 before-input-event 拦截后转发）：Ctrl+W 关闭、Ctrl+Tab 切换
   useEffect(
     () =>
-      window.awesomeNotes?.onTabShortcut((kind) => {
+      window.timber?.onTabShortcut((kind) => {
         const s = useStore.getState()
         if (kind === 'close' && s.activeTabId) s.closeTab(s.activeTabId)
         else if (kind === 'next' && s.tabs.length > 1) {
@@ -54,7 +57,7 @@ export default function App() {
     return (
       <div className="boot">
         <Logo size={56} />
-        <div className="boot-text">Awesome-Notes 正在启动…</div>
+        <div className="boot-text">Timber 正在启动…</div>
       </div>
     )
   }
@@ -67,7 +70,7 @@ export default function App() {
         <div className="boot-err">{fatalError}</div>
         <div className="boot-hint">
           纯 Web 预览模式需先手动启动 sidecar：
-          <code>sidecar/bin/notesd.exe -addr 127.0.0.1:37123 -token dev-token -data ./sidecar/data</code>
+          <code>sidecar/bin/timberd.exe -addr 127.0.0.1:37123 -token dev-token -data ./sidecar/data</code>
         </div>
       </div>
     )
@@ -79,7 +82,21 @@ export default function App() {
       <div className="app-body">
         {settingsOpen ? (
           <SettingsView />
+        ) : view === 'history' ? (
+          // 历史视图自带左右布局，无需文档侧栏
+          <main className="reader-wrap">
+            <HistoryView />
+          </main>
+        ) : view === 'architecture' ? (
+          <main className="reader-wrap">
+            <ArchitectureView />
+          </main>
+        ) : view === 'code' ? (
+          <main className="reader-wrap">
+            <CodeView />
+          </main>
         ) : (
+          // docs：现有文档阅读组合，原样保留
           <>
             {!zenMode && <Sidebar />}
             <main className={`reader-wrap ${zenMode ? 'zen' : ''}`}>

@@ -1,7 +1,7 @@
 {
-  "name": "awesome-notes",
-  "version": "0.4.8",
-  "description": "Awesome-Notes —— 项目富文本文档阅读器（Markdown / HTML），支持批注与编辑，批注可生成地址交给 agent 执行修改",
+  "name": "timber",
+  "version": "0.5.0",
+  "description": "Timber —— 项目理解工具：Git 历史 × 架构图 × 代码阅读 × 文档渲染，看清每一次提交如何塑造你的项目",
   "author": "Winchell.Hu <winchell.hu@outlook.com>",
   "license": "MIT",
   "private": true,

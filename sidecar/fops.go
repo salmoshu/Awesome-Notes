@@ -3,7 +3,7 @@ package main
 // fops.go：文件树操作 —— 重命名/移动（move）、复制（copy）、删除（delete）、
 // 新建目录（mkdir）、新建文档（create）。供前端文件树右键菜单与拖拽移动使用。
 // 所有路径相对项目根（/ 分隔），经 resolveDoc 防越界；移动/删除会同步迁移
-// .awesome-notes/annotations.json 里的批注锚点，避免批注指向已不存在的路径。
+// .timber/annotations.json 里的批注锚点，避免批注指向已不存在的路径。
 
 import (
 	"fmt"

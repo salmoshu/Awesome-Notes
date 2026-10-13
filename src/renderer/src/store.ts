@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Project, RemoteConfig } from '@shared/types'
-import type { Annotation, AnnotationKind, DocContent, DocNode } from '@shared/types'
-import { api, apiWith, apiInfo } from './api'
+import type { Annotation, AnnotationKind, ArchDeltaReceipt, ArchResult, ArchSpec, CommitDetail, CommitInfo, DocContent, DocNode } from '@shared/types'
+import { api, apiWith, apiInfo, archSpec, gitLog, gitShow, type ApiCall } from './api'
 import {
   establishRemote,
   loadRemotes,
@@ -59,6 +59,45 @@ export interface Toast {
 /** 项目工作区缓存：切换项目时保存/还原打开的文档标签状态（会话内有效） */
 const projectWorkspaces = new Map<string, { tabs: DocTab[]; activeTabId: string | null }>()
 
+/** 提交历史分页大小 */
+const COMMIT_PAGE_SIZE = 100
+/** 架构影响懒算并发去重（sha 级） */
+const pendingImpacts = new Set<string>()
+
+/** 写入提交架构影响缓存（不可变更新 Map 触发订阅） */
+function setImpact(
+  set: (partial: Partial<State>) => void,
+  get: () => State,
+  sha: string,
+  impact: CommitImpact
+): void {
+  const next = new Map(get().commitImpactCache)
+  next.set(sha, impact)
+  set({ commitImpactCache: next })
+}
+
+/** delta 回执摘要 → 徽章文案，如 `+2组件 −1连接 ~3改动`；无变化返回空串 */
+function formatImpactSummary(receipt: ArchDeltaReceipt): string {
+  const s = receipt.summary
+  if (!s) return ''
+  const parts: string[] = []
+  const cAdd = s.components?.added ?? 0
+  const cDel = s.components?.removed ?? 0
+  const eAdd = s.connections?.added ?? 0
+  const eDel = s.connections?.removed ?? 0
+  const mod =
+    (s.components?.changed ?? 0) +
+    (s.components?.moved ?? 0) +
+    (s.connections?.changed ?? 0) +
+    (s.connections?.rerouted ?? 0)
+  if (cAdd > 0) parts.push(`+${cAdd}组件`)
+  if (cDel > 0) parts.push(`−${cDel}组件`)
+  if (eAdd > 0) parts.push(`+${eAdd}连接`)
+  if (eDel > 0) parts.push(`−${eDel}连接`)
+  if (mod > 0) parts.push(`~${mod}改动`)
+  return parts.join(' ')
+}
+
 const IMAGE_EXT_SET = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'])
 
 /**
@@ -93,8 +132,66 @@ function startActiveDocWatcher(): void {
   }, 5000)
 }
 
+/** 应用主视图：提交历史 / 架构图 / 代码 / 文档 */
+export type AppView = 'history' | 'architecture' | 'code' | 'docs'
+
+/** 提交「架构影响」懒算结果（提交与其首个 parent 的 spec delta 摘要） */
+export interface CommitImpact {
+  /** 展示文本，如 `+2组件 −1连接 ~3改动`；空串 = 无变化 */
+  text: string
+}
+
+/** 从架构视图/历史详情发起的 delta 对比请求（base/head 为 ref 或 sha） */
+export interface ArchDeltaRequest {
+  base: string
+  head: string
+}
+
+/**
+ * 旧品牌 localStorage key 一次性迁移（awesome-notes-* → timber-*）。
+ * 仅在新 key 不存在时拷贝，旧 key 保留无副作用。须在 store 创建前执行
+ * （loadLayout/loadSettings/loadRemotes 等在模块初始化即读 localStorage）。
+ */
+function migrateLegacyKeys(): void {
+  try {
+    const exact: [string, string][] = [
+      ['awesome-notes-layout', 'timber-layout'],
+      ['awesome-notes-hidden-projects', 'timber-hidden-projects'],
+      ['awesome-notes-remotes', 'timber-remotes'],
+      ['awesome-notes-settings', 'timber-settings'],
+      ['awesome-notes-updater-prefs', 'timber-updater-prefs']
+    ]
+    const prefixes: [string, string][] = [
+      ['awesome-notes-alias:', 'timber-alias:'],
+      ['awesome-notes-blocked:', 'timber-blocked:']
+    ]
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key) continue
+      for (const [oldK, newK] of exact) {
+        if (key === oldK && localStorage.getItem(newK) === null) {
+          const v = localStorage.getItem(oldK)
+          if (v !== null) localStorage.setItem(newK, v)
+        }
+      }
+      for (const [oldP, newP] of prefixes) {
+        if (key.startsWith(oldP)) {
+          const newKey = newP + key.slice(oldP.length)
+          if (localStorage.getItem(newKey) === null) {
+            const v = localStorage.getItem(key)
+            if (v !== null) localStorage.setItem(newKey, v)
+          }
+        }
+      }
+    }
+  } catch {
+    /* 存储不可用时跳过迁移 */
+  }
+}
+migrateLegacyKeys()
+
 // ---- 布局偏好：侧栏折叠/宽度、批注面板宽度（localStorage 持久化） ----
-const LAYOUT_KEY = 'awesome-notes-layout'
+const LAYOUT_KEY = 'timber-layout'
 export const SIDEBAR_MIN_W = 180
 export const SIDEBAR_MAX_W = 520
 export const ANN_MIN_W = 240
@@ -189,6 +286,44 @@ interface State {
   /** 专注模式下展开的右侧浮层页签 */
   zenPanel: 'toc' | 'ann' | null
 
+  /** 应用主视图（默认提交历史） */
+  view: AppView
+  /** 提交历史列表（分页追加） */
+  commits: CommitInfo[]
+  commitsTotal: number
+  commitsLoading: boolean
+  /** commits 所属项目（项目切换后需重载） */
+  commitsProjectId: string | null
+  selectedSha: string | null
+  commitDetail: CommitDetail | null
+  commitDetailLoading: boolean
+  /** 架构 spec 缓存：ref（或 sha）→ spec；archRender/archDelta 复用 */
+  archSpecCache: Map<string, ArchSpec>
+  /** 架构 HTML 缓存：`<projectId>:<ref或sha对>` → 自包含 HTML */
+  archHtmlCache: Map<string, string>
+  /** 提交架构影响懒算缓存：sha → 摘要（text 为空 = 不显示徽章） */
+  commitImpactCache: Map<string, CommitImpact>
+  /** CodeView 当前打开的文件路径（相对项目根） */
+  codeFile: string | null
+  /** 历史详情「查看架构对比」发起的 delta 请求（architecture 视图消费） */
+  archDeltaRequest: ArchDeltaRequest | null
+
+  setView(v: AppView): void
+  /** 重新加载提交列表（第一页） */
+  loadCommits(): Promise<void>
+  /** 加载更多（skip 分页追加） */
+  loadMoreCommits(): Promise<void>
+  /** 选中提交并加载详情 */
+  selectCommit(sha: string | null): Promise<void>
+  /** 取某 ref 的架构 spec（带缓存；失败返回 { ok:false, error }，错误不缓存） */
+  ensureArchSpec(ref: string): Promise<ArchResult>
+  /** 懒算提交架构影响（与其首个 parent 的 delta 摘要），结果写入 commitImpactCache */
+  ensureCommitImpact(c: CommitInfo): Promise<void>
+  /** 在 CodeView 中打开文件并切到 code 视图 */
+  openInCode(path: string): void
+  /** 切到 architecture 视图的 delta 对比模式 */
+  openArchDelta(base: string, head: string): void
+
   toggleSidebar(): void
   setSidebarWidth(w: number): void
   setAnnPanelWidth(w: number): void
@@ -256,7 +391,7 @@ export function origProjectId(projectId: string): string {
   return projectId.replace(/^rm-[a-z0-9]+:/, '')
 }
 
-/** 按项目路由 API：远程项目走远端 notesd（并还原路径中的原始项目 id），本地项目走默认 */
+/** 按项目路由 API：远程项目走远端 timberd（并还原路径中的原始项目 id），本地项目走默认 */
 export function apiFor<T = unknown>(
   projectId: string | null | undefined
 ): (method: string, path: string, body?: unknown) => Promise<T> {
@@ -283,6 +418,12 @@ export async function rawBaseFor(projectId: string | null | undefined): Promise<
       : undefined
   if (remote) return remoteBase(remote)
   return (await apiInfo()).base
+}
+
+/** 按项目路由的通用调用器（api.ts 的 gitLog/gitShow/archRefs/archSpec 注入用；远程项目走远端 timberd） */
+export function apiCallFor(projectId: string): ApiCall {
+  return <T = unknown,>(method: string, path: string, body?: unknown): Promise<T> =>
+    apiFor<T>(projectId)(method, path, body)
 }
 
 /** 两个远程配置是否指向同一目标（防重复连接导致项目翻倍） */
@@ -331,6 +472,20 @@ export const useStore = create<State>((set, get) => ({
   zenMode: false,
   zenPanel: null,
 
+  view: 'history',
+  commits: [],
+  commitsTotal: 0,
+  commitsLoading: false,
+  commitsProjectId: null,
+  selectedSha: null,
+  commitDetail: null,
+  commitDetailLoading: false,
+  archSpecCache: new Map(),
+  archHtmlCache: new Map(),
+  commitImpactCache: new Map(),
+  codeFile: null,
+  archDeltaRequest: null,
+
   toggleSidebar() {
     const next = !get().sidebarCollapsed
     set({ sidebarCollapsed: next })
@@ -357,6 +512,112 @@ export const useStore = create<State>((set, get) => ({
     // 展开浮层时同步标签记忆的页签，AnnotationPanel 会跟随显示对应内容
     if (p) get().patchActiveTab({ panel: p })
     set({ zenPanel: p })
+  },
+
+  setView(v) {
+    set({ view: v })
+  },
+
+  async loadCommits() {
+    const id = get().activeProjectId
+    if (!id) return
+    set({ commitsLoading: true, commits: [], commitsTotal: 0, commitsProjectId: id })
+    try {
+      const r = await gitLog(id, 0, COMMIT_PAGE_SIZE, apiCallFor(id))
+      set({ commits: r.commits ?? [], commitsTotal: r.total ?? 0, commitsLoading: false })
+    } catch (err) {
+      set({ commitsLoading: false })
+      get().toast('err', `提交历史加载失败：${err}`)
+    }
+  },
+
+  async loadMoreCommits() {
+    const s = get()
+    const id = s.activeProjectId
+    if (!id || s.commitsLoading || s.commits.length >= s.commitsTotal) return
+    set({ commitsLoading: true })
+    try {
+      const r = await gitLog(id, s.commits.length, COMMIT_PAGE_SIZE, apiCallFor(id))
+      set({ commits: [...get().commits, ...(r.commits ?? [])], commitsTotal: r.total ?? s.commitsTotal, commitsLoading: false })
+    } catch (err) {
+      set({ commitsLoading: false })
+      get().toast('err', `提交历史加载失败：${err}`)
+    }
+  },
+
+  async selectCommit(sha) {
+    const s = get()
+    const id = s.activeProjectId
+    set({ selectedSha: sha, commitDetail: null, commitDetailLoading: sha !== null })
+    if (!sha || !id) return
+    try {
+      const detail = await gitShow(id, sha, apiCallFor(id))
+      // 防止加载期间用户改选其它提交
+      if (get().selectedSha === sha) set({ commitDetail: detail, commitDetailLoading: false })
+    } catch (err) {
+      if (get().selectedSha === sha) set({ commitDetailLoading: false })
+      get().toast('err', `提交详情加载失败：${err}`)
+    }
+  },
+
+  async ensureArchSpec(ref) {
+    const id = get().activeProjectId
+    if (!id) return { ok: false as const, error: 'no-project' }
+    const cached = get().archSpecCache.get(ref)
+    if (cached) return { ok: true as const, spec: cached }
+    const r = await archSpec(id, ref, apiCallFor(id))
+    if (r.ok) {
+      const next = new Map(get().archSpecCache)
+      next.set(ref, r.spec)
+      set({ archSpecCache: next })
+    }
+    return r
+  },
+
+  async ensureCommitImpact(c) {
+    const id = get().activeProjectId
+    if (!id) return
+    if (get().commitImpactCache.has(c.sha)) return
+    // 根提交：无 parent 可比，显示「初始提交」
+    if (c.parents.length === 0) {
+      setImpact(set, get, c.sha, { text: '初始提交' })
+      return
+    }
+    // 并发去重：同一 sha 只算一次
+    if (pendingImpacts.has(c.sha)) return
+    pendingImpacts.add(c.sha)
+    try {
+      const parent = c.parents[0]
+      const [baseR, headR] = await Promise.all([get().ensureArchSpec(parent), get().ensureArchSpec(c.sha)])
+      // 无源码/无提交等场景不显示徽章（text 空串）
+      if (!baseR.ok || !headR.ok) {
+        setImpact(set, get, c.sha, { text: '' })
+        return
+      }
+      const b = window.timber
+      if (!b) {
+        setImpact(set, get, c.sha, { text: '' })
+        return
+      }
+      const r = await b.archDelta(JSON.stringify(baseR.spec), JSON.stringify(headR.spec), `${id}:${parent}..${c.sha}`)
+      if (!r.ok || !r.receipt) {
+        setImpact(set, get, c.sha, { text: '' })
+        return
+      }
+      setImpact(set, get, c.sha, { text: formatImpactSummary(r.receipt) })
+    } catch {
+      setImpact(set, get, c.sha, { text: '' })
+    } finally {
+      pendingImpacts.delete(c.sha)
+    }
+  },
+
+  openInCode(path) {
+    set({ codeFile: path.replace(/\\/g, '/'), view: 'code' })
+  },
+
+  openArchDelta(base, head) {
+    set({ archDeltaRequest: { base, head }, view: 'architecture' })
   },
 
   setSetting(key, value) {
@@ -577,7 +838,7 @@ export const useStore = create<State>((set, get) => ({
     if (remoteId) {
       const path =
         p?.path ?? snapRemote?.projects?.find((sp) => `${snapRemote.id}:${sp.id}` === id)?.path
-      // 本地清单为真相：从本地清单删除即不再呈现；在线时顺带尽力远端注销（远端 notesd 只是壳）
+      // 本地清单为真相：从本地清单删除即不再呈现；在线时顺带尽力远端注销（远端 timberd 只是壳）
       if (get().remotes.find((r) => r.id === remoteId)?.connected) {
         try {
           await apiFor(id)('DELETE', `/api/projects/${id}`)
@@ -644,7 +905,18 @@ export const useStore = create<State>((set, get) => ({
       activeTabId: null,
       activeDoc: null,
       annotations: [],
-      composeQuote: null
+      composeQuote: null,
+      // 历史/架构/代码域随项目切换清空（缓存按项目隔离，重进时重新加载）
+      commits: [],
+      commitsTotal: 0,
+      commitsProjectId: null,
+      selectedSha: null,
+      commitDetail: null,
+      archSpecCache: new Map(),
+      archHtmlCache: new Map(),
+      commitImpactCache: new Map(),
+      codeFile: null,
+      archDeltaRequest: null
     })
     try {
       const tree = await apiFor<DocNode>(id)('GET', `/api/projects/${id}/tree?${extsQuery().slice(1)}`)

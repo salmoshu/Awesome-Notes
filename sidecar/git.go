@@ -6,19 +6,19 @@ package main
 
 import (
 	"context"
-	"path/filepath"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// ensureGitIgnore：若项目是 git 仓库且 .gitignore 未忽略 .awesome-notes，则追加忽略项（幂等）。
-// 批注库等本地数据写入 <项目>/.awesome-notes/，不应进入版本库。
+// ensureGitIgnore：若项目是 git 仓库且 .gitignore 未忽略 .timber，则追加忽略项（幂等）。
+// 批注库等本地数据写入 <项目>/.timber/，不应进入版本库。
 func ensureGitIgnore(projectPath string) {
 	out, err := gitRun(projectPath, 10*time.Second, "rev-parse", "--is-inside-work-tree")
 	if err != nil || strings.TrimSpace(out) != "true" {
@@ -27,10 +27,10 @@ func ensureGitIgnore(projectPath string) {
 	ignorePath := filepath.Join(projectPath, ".gitignore")
 	data, err := os.ReadFile(ignorePath)
 	content := string(data)
-	if err == nil && strings.Contains(content, ".awesome-notes") {
+	if err == nil && strings.Contains(content, ".timber") {
 		return
 	}
-	line := ".awesome-notes/"
+	line := ".timber/"
 	if err == nil && len(content) > 0 && !strings.HasSuffix(content, "\n") {
 		line = "\n" + line
 	}

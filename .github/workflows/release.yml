@@ -54,10 +54,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          $exe = Get-ChildItem "release-ci/Awesome-Notes-Setup-*.exe" | Where-Object { $_.Name -notlike "*.blockmap" } | Select-Object -First 1
+          $exe = Get-ChildItem "release-ci/Timber-Setup-*.exe" | Where-Object { $_.Name -notlike "*.blockmap" } | Select-Object -First 1
           $blockmap = "$($exe.FullName).blockmap"
           gh release create $env:TAG $exe.FullName $blockmap "release-ci/latest.yml" `
-            --title "Awesome-Notes $env:TAG" --notes-file release-notes.md --latest `
+            --title "Timber $env:TAG" --notes-file release-notes.md --latest `
             2>&1 | Write-Host
           if ($LASTEXITCODE -ne 0) {
             Write-Host "release 已存在，改为覆盖上传资产"

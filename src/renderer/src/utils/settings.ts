@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   docFormats: ['md', 'html', 'txt']
 }
 
-const SETTINGS_KEY = 'awesome-notes-settings'
+const SETTINGS_KEY = 'timber-settings'
 
 /** v0.2.0 及之前 contentWidth 为像素值（760/820/960/9999），迁移到百分比档位 */
 function normalizeWidth(w: unknown): number {

@@ -1,10 +1,10 @@
 /// <reference types="vite/client" />
 import type { CSSProperties, RefObject } from 'react'
-import type { AwesomeNotesBridge } from '@shared/types'
+import type { TimberBridge } from '@shared/types'
 
 declare global {
   interface Window {
-    awesomeNotes?: AwesomeNotesBridge
+    timber?: TimberBridge
   }
 
   /** 构建期由 vite define 注入（package.json version） */

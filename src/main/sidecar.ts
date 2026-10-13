@@ -23,13 +23,13 @@ export async function startSidecar(): Promise<ApiInfo> {
   const token = lastToken || randomBytes(16).toString('hex')
   lastToken = token
   const exe = app.isPackaged
-    ? join(process.resourcesPath, 'sidecar', 'notesd.exe')
-    : join(app.getAppPath(), 'sidecar', 'bin', 'notesd.exe')
+    ? join(process.resourcesPath, 'sidecar', 'timberd.exe')
+    : join(app.getAppPath(), 'sidecar', 'bin', 'timberd.exe')
   if (!existsSync(exe)) {
     throw new Error(`sidecar 二进制不存在：${exe}（请先执行 pnpm build:sidecar）`)
   }
   const dataDir = join(app.getPath('userData'), 'sidecar-data')
-  // 部署资源目录 = 二进制所在目录（notesd-linux-* 用于推送到 WSL/SSH 远端）
+  // 部署资源目录 = 二进制所在目录（timberd-linux-* 用于推送到 WSL/SSH 远端）
   const assetsDir = dirname(exe)
 
   // 优先复用上次端口（渲染层缓存了 base/token，减少失效）；被占用则回退随机端口
@@ -44,7 +44,7 @@ export async function startSidecar(): Promise<ApiInfo> {
     const timer = setTimeout(() => reject(new Error('sidecar 启动超时（10s）')), 10_000)
     child!.stdout!.on('data', (d) => {
       buf += d.toString()
-      const m = buf.match(/NOTESD_READY port=(\d+)/)
+      const m = buf.match(/TIMBERD_READY port=(\d+)/)
       if (m) {
         clearTimeout(timer)
         const port = parseInt(m[1], 10)

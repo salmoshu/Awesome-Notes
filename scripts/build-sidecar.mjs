@@ -28,9 +28,9 @@ mkdirSync(outDir, { recursive: true })
 
 // Windows 本地服务 + Linux amd64/arm64 部署包（WSL/SSH 远程接入时推送到远端运行）
 const targets = [
-  { out: 'notesd.exe', env: {} },
-  { out: 'notesd-linux-amd64', env: { GOOS: 'linux', GOARCH: 'amd64', CGO_ENABLED: '0' } },
-  { out: 'notesd-linux-arm64', env: { GOOS: 'linux', GOARCH: 'arm64', CGO_ENABLED: '0' } }
+  { out: 'timberd.exe', env: {} },
+  { out: 'timberd-linux-amd64', env: { GOOS: 'linux', GOARCH: 'amd64', CGO_ENABLED: '0' } },
+  { out: 'timberd-linux-arm64', env: { GOOS: 'linux', GOARCH: 'arm64', CGO_ENABLED: '0' } }
 ]
 
 for (const t of targets) {

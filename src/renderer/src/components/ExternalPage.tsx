@@ -11,7 +11,7 @@ interface Props {
  * 纯 Web 预览回退 <iframe>。主文档返回 >=400 或加载失败时展示美化错误页。
  */
 export default function ExternalPage({ url: initialUrl, onClose }: Props) {
-  const bridge = window.awesomeNotes
+  const bridge = window.timber
   const webviewRef = useRef<WebviewTag | null>(null)
   const [url, setUrl] = useState(initialUrl)
   const [canBack, setCanBack] = useState(false)

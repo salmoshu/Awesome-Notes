@@ -1,0 +1,136 @@
+// 提交历史视图：左侧提交列表（lane 圆点 + kind 徽章 + 统计 + 架构影响懒算），右侧提交详情
+import { useEffect, useRef } from 'react'
+import type { CommitInfo } from '@shared/types'
+import { useStore } from '../store'
+import CommitDetail from './CommitDetail'
+
+/** kind → lane/徽章配色（契约规定） */
+const KIND_COLORS: Record<string, string> = {
+  feat: '#22c55e',
+  fix: '#ef4444',
+  docs: '#3b82f6',
+  refactor: '#a855f7',
+  test: '#eab308',
+  build: '#6b7280',
+  change: '#06b6d4'
+}
+
+export function kindColor(kind: string): string {
+  return KIND_COLORS[kind] ?? '#6b7280'
+}
+
+/** unix 秒 → 相对时间 */
+export function relativeTime(unixSec: number): string {
+  const diff = Math.max(0, Date.now() - unixSec * 1000)
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min} 分钟前`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour} 小时前`
+  const day = Math.floor(hour / 24)
+  if (day < 30) return `${day} 天前`
+  const month = Math.floor(day / 30)
+  if (month < 12) return `${month} 个月前`
+  return `${Math.floor(month / 12)} 年前`
+}
+
+/** 单个提交行（进入视口或选中时懒算架构影响） */
+function CommitRow({ commit }: { commit: CommitInfo }) {
+  const selectedSha = useStore((s) => s.selectedSha)
+  const selectCommit = useStore((s) => s.selectCommit)
+  const ensureCommitImpact = useStore((s) => s.ensureCommitImpact)
+  const impact = useStore((s) => s.commitImpactCache.get(commit.sha))
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  const selected = selectedSha === commit.sha
+  const merge = commit.parents.length > 1
+  const color = kindColor(commit.kind)
+
+  // 懒算：进入视口一次或选中时触发（store 内部按 sha 缓存/去重）
+  useEffect(() => {
+    if (selected) void ensureCommitImpact(commit)
+  }, [selected, commit, ensureCommitImpact])
+  useEffect(() => {
+    const el = rowRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          void ensureCommitImpact(commit)
+          ob.disconnect()
+        }
+      },
+      { root: el.closest('.hv-list') }
+    )
+    ob.observe(el)
+    return () => ob.disconnect()
+  }, [commit, ensureCommitImpact])
+
+  return (
+    <div
+      ref={rowRef}
+      className={`hv-row ${selected ? 'selected' : ''}`}
+      onClick={() => void selectCommit(commit.sha)}
+    >
+      {/* lane：merge 提交双环圆点 */}
+      <span className={`hv-lane ${merge ? 'merge' : ''}`} style={{ color }}>
+        <span className="hv-dot" style={{ background: color }} />
+      </span>
+      <div className="hv-main">
+        <div className="hv-line1">
+          <span className="hv-kind" style={{ background: color }}>{commit.kind}</span>
+          <span className="hv-subject" title={commit.subject}>{commit.subject}</span>
+        </div>
+        <div className="hv-line2">
+          <span className="hv-stat ins">+{commit.insertions}</span>
+          <span className="hv-stat del">−{commit.deletions}</span>
+          <span className="hv-stat files">{commit.files} 文件</span>
+          <span className="hv-time">{relativeTime(commit.time)}</span>
+          {impact && impact.text && <span className="hv-impact">{impact.text}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function HistoryView() {
+  const activeProjectId = useStore((s) => s.activeProjectId)
+  const commits = useStore((s) => s.commits)
+  const commitsTotal = useStore((s) => s.commitsTotal)
+  const commitsLoading = useStore((s) => s.commitsLoading)
+  const commitsProjectId = useStore((s) => s.commitsProjectId)
+  const loadCommits = useStore((s) => s.loadCommits)
+  const loadMoreCommits = useStore((s) => s.loadMoreCommits)
+
+  // 项目切换后（或首次进入）加载第一页
+  useEffect(() => {
+    if (activeProjectId && commitsProjectId !== activeProjectId && !commitsLoading) {
+      void loadCommits()
+    }
+  }, [activeProjectId, commitsProjectId, commitsLoading, loadCommits])
+
+  if (!activeProjectId) {
+    return <div className="hv-empty">请先在左侧选择项目</div>
+  }
+
+  return (
+    <div className="history-view">
+      <div className="hv-list">
+        {commits.map((c) => (
+          <CommitRow key={c.sha} commit={c} />
+        ))}
+        {commitsLoading && <div className="hv-loading">加载中…</div>}
+        {!commitsLoading && commits.length === 0 && (
+          <div className="hv-empty">暂无提交记录（或该项目不是 Git 仓库）</div>
+        )}
+        {!commitsLoading && commits.length > 0 && commits.length < commitsTotal && (
+          <button className="hv-more" onClick={() => void loadMoreCommits()}>
+            加载更多（{commits.length}/{commitsTotal}）
+          </button>
+        )}
+      </div>
+      <div className="hv-detail">
+        <CommitDetail />
+      </div>
+    </div>
+  )
+}

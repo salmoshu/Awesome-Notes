@@ -13,7 +13,7 @@ import { useStore } from '../store'
  */
 export default function UpdateCard() {
   const settingsOpen = useStore((s) => s.settingsOpen)
-  const bridge = window.awesomeNotes
+  const bridge = window.timber
   const [event, setEvent] = useState<UpdateStatusEvent | null>(null)
   const [prefs, setPrefs] = useState<UpdaterPrefs>(loadUpdaterPrefs)
   const [sessionHidden, setSessionHidden] = useState(false)

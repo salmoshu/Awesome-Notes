@@ -1,10 +1,10 @@
-// 远程连接：zcode 式接入 —— WSL/SSH 由本地 sidecar 自动部署并启动远端 notesd
-// （NDJSON 流式回报进度），Docker/自定义 直连已有 notesd 地址。
+// 远程连接：zcode 式接入 —— WSL/SSH 由本地 sidecar 自动部署并启动远端 timberd
+// （NDJSON 流式回报进度），Docker/自定义 直连已有 timberd 地址。
 // 连接配置持久化在 localStorage；应用重启后 connected=false，在侧栏显示未连接占位，由用户点击 ⟳ 手动重连。
 import type { Project, RemoteConfig, RemoteProjectInfo, SshConfig } from '@shared/types'
 import { api, apiInfo, apiWith } from '../api'
 
-const REMOTES_KEY = 'awesome-notes-remotes'
+const REMOTES_KEY = 'timber-remotes'
 
 export interface LogLine {
   step?: string
@@ -67,7 +67,7 @@ export async function setupRemote(
   const { base, token } = await apiInfo()
   const r = await fetch(base + '/api/remote/setup', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Notes-Token': token },
+    headers: { 'Content-Type': 'application/json', 'X-Timber-Token': token },
     body: JSON.stringify(req)
   })
   if (!r.ok || !r.body) {
@@ -134,7 +134,7 @@ async function handshake(remote: RemoteConfig): Promise<{ remote: RemoteConfig; 
   }
 }
 
-/** 连接后同步项目：本地清单为真相（远端 notesd 只是壳）。
+/** 连接后同步项目：本地清单为真相（远端 timberd 只是壳）。
  *  新建连接 projectPaths 已初始化为 []，不采纳远端存量（远端注册表只是历史导入的镜像，
  *  全量采纳会让项目"凭空出现"）；仅老数据（projectPaths 缺失）首连一次性采纳远端已注册项目。
  *  之后按本地清单逐个幂等注册（项目 id 由路径 sha1 派生，跨会话稳定），路径失效的跳过但保留在清单中 */
@@ -203,7 +203,7 @@ export async function establishRemote(
       }
     }
   }
-  // docker / custom：直连已有 notesd
+  // docker / custom：直连已有 timberd
   const probe: RemoteConfig = {
     id: newId(),
     name: params.name?.trim() || `${params.host}:${params.port}`,
@@ -216,7 +216,7 @@ export async function establishRemote(
   }
   onLog({ level: 'info', msg: `健康检查 ${remoteBase(probe)} …` })
   await apiWith(remoteBase(probe), probe.token, 'GET', '/api/health')
-  onLog({ level: 'ok', msg: 'notesd 可达，握手完成' })
+  onLog({ level: 'ok', msg: 'timberd 可达，握手完成' })
   return { remote: probe }
 }
 

@@ -15,7 +15,7 @@ export interface Project {
   remoteId?: string
 }
 
-/** 远程连接配置（连接到远端机器上运行的 notesd 服务） */
+/** 远程连接配置（连接到远端机器上运行的 timberd 服务） */
 export interface RemoteConfig {
   id: string
   name: string
@@ -32,7 +32,7 @@ export interface RemoteConfig {
   wsl?: { distro: string }
   /** kind=ssh：自动部署的 SSH 参数（凭据仅存本机 localStorage） */
   ssh?: SshConfig
-  /** 本地记住的远程项目路径清单（本地为真相，远端 notesd 只是壳）；
+  /** 本地记住的远程项目路径清单（本地为真相，远端 timberd 只是壳）；
    *  新建连接初始为 []（不采纳远端存量）；
    *  undefined = v0.3.11 前的老数据未迁移，首次重连时一次性采纳远端已注册项目 */
   projectPaths?: string[]
@@ -41,7 +41,7 @@ export interface RemoteConfig {
   projects?: RemoteProjectInfo[]
 }
 
-/** 远程项目的本地快照条目（id 为远端 notesd 注册 id，路径 sha1 派生；
+/** 远程项目的本地快照条目（id 为远端 timberd 注册 id，路径 sha1 派生；
  *  呈现/操作时的合成项目 id = `${remoteId}:${id}`） */
 export interface RemoteProjectInfo {
   id: string
@@ -163,8 +163,86 @@ export interface SearchResponse {
   truncated: boolean
 }
 
+// ---- Git 提交历史与架构分析（sidecar /api/projects/:id/git/log、/arch/*） ----
+
+/** 提交条目（git log 列表项） */
+export interface CommitInfo {
+  sha: string
+  short: string
+  parents: string[]
+  author: string
+  email: string
+  /** unix 秒 */
+  time: number
+  subject: string
+  /** conventional 前缀或文件启发分类：feat/fix/docs/style/refactor/perf/test/build/ci/chore/revert/change */
+  kind: string
+  files: number
+  insertions: number
+  deletions: number
+}
+
+/** 提交中的文件变更 */
+export interface CommitFile {
+  path: string
+  oldPath?: string
+  /** A/M/D/R */
+  status: string
+  insertions: number
+  deletions: number
+}
+
+/** 提交详情（git show） */
+export interface CommitDetail {
+  commit: CommitInfo
+  body: string
+  files: CommitFile[]
+}
+
+/** 架构快照可选 ref 清单 */
+export interface ArchRefs {
+  head: string
+  branches: { name: string; sha: string }[]
+  tags: { name: string; sha: string }[]
+}
+
+/** archify architecture v1 spec（字段宽松，渲染在 main 进程 archify 完成） */
+export interface ArchSpec {
+  schema_version: number
+  diagram_type: string
+  meta?: {
+    title?: string
+    quality_profile?: string
+    repository?: { url?: string; revision?: string; provider?: string }
+  }
+  components?: {
+    id: string
+    type?: string
+    label?: string
+    sublabel?: string
+    pos?: [number, number]
+    size?: [number, number]
+    sources?: { path: string }[]
+  }[]
+  boundaries?: { kind?: string; label?: string; wraps?: string[] }[]
+  connections?: { id?: string; from: string; to: string; label?: string }[]
+}
+
+/** arch/spec 响应：成功为 spec 本体（顶层含 diagram_type），失败为 { ok:false, error } */
+export type ArchResult = { ok: true; spec: ArchSpec } | { ok: false; error: string }
+
+/** arch:delta 回执（summary 各项计数用于「架构影响」徽章） */
+export interface ArchDeltaReceipt {
+  summary?: {
+    components?: { added?: number; removed?: number; changed?: number; moved?: number }
+    connections?: { added?: number; removed?: number; changed?: number; rerouted?: number }
+    [k: string]: unknown
+  }
+  [k: string]: unknown
+}
+
 // preload 暴露给渲染进程的桥
-export interface AwesomeNotesBridge {
+export interface TimberBridge {
   getApiInfo(): Promise<ApiInfo>
   selectFolder(): Promise<string | null>
   revealPath(p: string): Promise<void>
@@ -190,6 +268,14 @@ export interface AwesomeNotesBridge {
   onTabShortcut(cb: (kind: 'close' | 'next') => void): () => void
   /** sidecar 自动重启后新 base/token（更新渲染层缓存） */
   onApiInfoChanged(cb: (info: ApiInfo) => void): () => void
+  /** archify 渲染架构快照 HTML（自包含字符串，主进程带缓存） */
+  archRender(specJson: string, cacheKey: string): Promise<{ ok: boolean; html?: string; error?: string }>
+  /** archify 架构对比：返回 delta HTML 与回执 */
+  archDelta(
+    baseJson: string,
+    headJson: string,
+    cacheKey: string
+  ): Promise<{ ok: boolean; html?: string; receipt?: ArchDeltaReceipt; error?: string }>
 }
 
 // ---- 版本更新（对齐 Nav-Tools UpdateService 语义） ----

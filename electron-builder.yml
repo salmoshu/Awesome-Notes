@@ -1,5 +1,5 @@
-appId: com.winchell.awesome-notes
-productName: Awesome-Notes
+appId: com.winchell.timber
+productName: Timber
 directories:
   output: release
 files:
@@ -8,12 +8,14 @@ files:
 extraResources:
   - from: sidecar/bin
     to: sidecar
+  - from: vendor/archify
+    to: vendor/archify
   - from: release-notes.md
     to: release-notes.md
 publish:
   - provider: github
     owner: salmoshu
-    repo: Awesome-Notes
+    repo: Timber
     releaseType: release
 win:
   target:
@@ -21,7 +23,7 @@ win:
   # 安装包名不含空格：latest.yml 的 url、GitHub 资产名与实际文件三者一致，
   # 否则 GitHub 把空格资产名转成点号后，electron-updater 按空格→连字符拼出的
   # 下载地址会 404（v0.2.0/v0.2.1 即踩此坑）
-  artifactName: "Awesome-Notes-Setup-${version}.exe"
+  artifactName: "Timber-Setup-${version}.exe"
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
