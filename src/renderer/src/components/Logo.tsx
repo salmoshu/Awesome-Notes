@@ -1,8 +1,9 @@
 // 应用 Logo（与 resources/logo.svg 同源）：树干 —— Timber = 木材，主干即项目，树皮纹理即记录
-// animated（默认 true）启用动画：入场（约 1.2s，只播一次定格终帧）树干先自下而上“生长”
+// animated（默认 true）启用动画：入场（约 1.6s，只播一次定格终帧）树干先自下而上“生长”
 // （clipPath 裁剪矩形以底边为原点 scaleY 0→1，根脚先落地、干身升起），随后树皮纹理线、
-// 枝茬、锯断面、木节、顶部断面、地面阴影 stagger 淡入；入场结束后整棵树绕树干底部中心
-// 极缓慢轻摆（±0.4°，7s 一周期，克制不晃眼）。
+// 枝茬、锯断面、木节、顶部断面、地面阴影 stagger 淡入，最后枝茬末端的绿叶从叶根
+// scale 0→1 冒出（带轻微旋转与 overshoot，每片相隔 120ms）；入场结束后整棵树绕树干
+// 底部中心极缓慢轻摆（±0.4°，7s 一周期，克制不晃眼），叶子在 sway 组内随整体一起摆。
 // prefers-reduced-motion: reduce 或 animated=false 时不挂任何动画类，直接呈现静态终帧。
 // 关键帧定义在 styles.css「Logo 动画（0.5.2）」段。
 import type { CSSProperties } from 'react'
@@ -16,9 +17,22 @@ const BARK_LINES = [
   { d: 'M 217 235 C 214 282 212 318 211 348', stroke: '#A9713B', width: 4, opacity: 0.7 },
 ]
 
-// 入场节奏（全程约 1.2s）：0s 树干开始生长（0.7s 长完）→ 0.55s 起树皮线每 70ms 淡入一条
+// 绿叶：叶片沿局部 +x 从叶根 (0,0) 长到叶尖，上下两段贝塞尔收成尖椭圆，叶脉一条浅色细线。
+// 外层 g 只做定位（translate/rotate/scale），内层 g 承载 CSS 缩放动画——
+// CSS transform 会覆盖 SVG transform 属性，分层可让定位与入场动画互不干扰。
+const LEAF_PATH = 'M 0 0 C 12 -15 38 -17 54 0 C 38 17 12 15 0 0 Z'
+const LEAF_VEIN = 'M 3 0 C 18 -2.4 36 -1.6 49 0'
+// 右侧枝茬两片（一上扬一近水平）、左上枝茬一片（顺枝斜上），方向错落；
+// 延迟排在枝茬锯断面淡入之后，三片各相隔 120ms，最后一片 1.12s + 0.5s ≈ 1.6s 定格
+const LEAVES = [
+  { transform: 'translate(353 228) rotate(-58) scale(1.15)', delayMs: 880 },
+  { transform: 'translate(353 228) rotate(10) scale(0.95)', delayMs: 1000 },
+  { transform: 'translate(173 175) rotate(214) scale(1.05)', delayMs: 1120 },
+]
+
+// 入场节奏（全程约 1.6s）：0s 树干开始生长（0.7s 长完）→ 0.55s 起树皮线每 70ms 淡入一条
 // → 枝茬 0.7s/0.78s → 枝茬锯断面 0.86s/0.94s、木节 0.96s、地面阴影 0.9s
-// → 顶部锯断面 1.0s 最后出现（此时树干刚好长到顶端）
+// → 顶部锯断面 1.0s 最后出现（此时树干刚好长到顶端）→ 绿叶 0.88s/1.0s/1.12s 依次冒出
 const BARK_FIRST_DELAY_MS = 550
 const BARK_STAGGER_MS = 70
 
@@ -45,6 +59,11 @@ export default function Logo({ size = 20, animated = true }: { size?: number; an
           <stop offset="0.78" stopColor="#A9713B" />
           <stop offset="1" stopColor="#6E3E1D" />
         </linearGradient>
+        {/* 叶面渐变：沿叶片局部 x 轴（叶根→叶尖）由亮到深，在暖木色与深底板上都能跳出来 */}
+        <linearGradient id="timber-logo-leaf" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#6FBF73" />
+          <stop offset="1" stopColor="#3E8E4A" />
+        </linearGradient>
         {/* 生长裁剪：矩形包住整根树干（含根脚），动画以其底边为原点纵向展开（scaleY 0→1） */}
         <clipPath id="timber-logo-clip">
           <rect x="150" y="90" width="212" height="340" className={animated ? 'timber-grow' : undefined} />
@@ -63,6 +82,17 @@ export default function Logo({ size = 20, animated = true }: { size?: number; an
         {/* 枝茬（压在树干后方，根部被遮住）：右侧一根、左上小枝 */}
         <path d="M 300 252 L 350 230" fill="none" stroke="#A9713B" strokeWidth="26" strokeLinecap="round" className={fade} style={animated ? fadeStyle(700) : undefined} />
         <path d="M 210 196 L 176 178" fill="none" stroke="#A9713B" strokeWidth="19" strokeLinecap="round" className={fade} style={animated ? fadeStyle(780) : undefined} />
+
+        {/* 绿叶：从两处枝茬锯断面长出，叶根压在断面上（断面稍后绘制、盖住叶根），随 sway 组一起轻摆；
+            外层 g 定位、内层 g 做 scale 入场，避免 CSS transform 覆盖外层的 SVG transform 属性 */}
+        {LEAVES.map((leaf) => (
+          <g key={leaf.transform} transform={leaf.transform}>
+            <g className={animated ? 'timber-leaf' : undefined} style={animated ? fadeStyle(leaf.delayMs) : undefined}>
+              <path d={LEAF_PATH} fill="url(#timber-logo-leaf)" />
+              <path d={LEAF_VEIN} fill="none" stroke="#BCE3B0" strokeWidth="1.8" strokeLinecap="round" opacity="0.7" />
+            </g>
+          </g>
+        ))}
 
         {/* 树干本体：微锥度，底部根脚外张；经 clipPath 自下而上生长 */}
         <path

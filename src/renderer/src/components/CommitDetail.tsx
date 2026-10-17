@@ -4,12 +4,12 @@ import type { CommitFile } from '@shared/types'
 import { useStore } from '../store'
 import { kindColor, relativeTime } from './HistoryView'
 
-/** 文件变更状态徽章配色 */
+/** 文件变更状态徽章配色（功能色语义） */
 const STATUS_COLORS: Record<string, string> = {
-  A: '#22c55e',
-  M: '#eab308',
-  D: '#ef4444',
-  R: '#3b82f6'
+  A: 'var(--Colors-PositiveGreen)',
+  M: 'var(--Colors-Orange)',
+  D: 'var(--Colors-Red)',
+  R: 'var(--Colors-KMBlue)'
 }
 
 function fullTime(unixSec: number): string {
@@ -27,7 +27,7 @@ function FileRow({ file }: { file: CommitFile }) {
     <div className="cd-file" onClick={() => openInCode(file.path)} title="在代码视图中打开">
       <span
         className="cd-status"
-        style={{ background: STATUS_COLORS[file.status] ?? '#6b7280' }}
+        style={{ background: STATUS_COLORS[file.status] ?? 'var(--Labels-Tertiary)' }}
       >
         {file.status}
       </span>

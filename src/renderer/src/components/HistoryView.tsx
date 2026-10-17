@@ -4,19 +4,19 @@ import type { CommitInfo } from '@shared/types'
 import { useStore } from '../store'
 import CommitDetail from './CommitDetail'
 
-/** kind → lane/徽章配色（契约规定） */
+/** kind → lane/徽章配色：品牌蓝单色编码，仅 fix 用功能红表达语义 */
 const KIND_COLORS: Record<string, string> = {
-  feat: '#22c55e',
-  fix: '#ef4444',
-  docs: '#3b82f6',
-  refactor: '#a855f7',
-  test: '#eab308',
-  build: '#6b7280',
-  change: '#06b6d4'
+  feat: 'var(--Colors-KMBlue)',
+  fix: 'var(--Colors-Red)',
+  docs: 'var(--Colors-KMBlue)',
+  refactor: 'var(--Colors-KMBlue)',
+  test: 'var(--Colors-KMBlue)',
+  build: 'var(--Colors-KMBlue)',
+  change: 'var(--Colors-KMBlue)'
 }
 
 export function kindColor(kind: string): string {
-  return KIND_COLORS[kind] ?? '#6b7280'
+  return KIND_COLORS[kind] ?? 'var(--Colors-KMBlue)'
 }
 
 /** unix 秒 → 相对时间 */

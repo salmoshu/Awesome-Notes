@@ -12,6 +12,11 @@
       <stop offset="0.78" stop-color="#A9713B"/>
       <stop offset="1" stop-color="#6E3E1D"/>
     </linearGradient>
+    <!-- 叶面渐变：沿叶片局部 x 轴（叶根→叶尖）由亮到深 -->
+    <linearGradient id="timber-leaf" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6FBF73"/>
+      <stop offset="1" stop-color="#3E8E4A"/>
+    </linearGradient>
   </defs>
 
   <!-- 底板 -->
@@ -25,6 +30,20 @@
     <!-- 枝茬（压在树干后方，根部被遮住）：右侧一根、左上小枝 -->
     <path d="M 300 252 L 350 230" fill="none" stroke="#A9713B" stroke-width="26" stroke-linecap="round"/>
     <path d="M 210 196 L 176 178" fill="none" stroke="#A9713B" stroke-width="19" stroke-linecap="round"/>
+
+    <!-- 绿叶（静态终帧）：右侧枝茬两片（一上扬一近水平）、左上枝茬一片（顺枝斜上） -->
+    <g transform="translate(353 228) rotate(-58) scale(1.15)">
+      <path d="M 0 0 C 12 -15 38 -17 54 0 C 38 17 12 15 0 0 Z" fill="url(#timber-leaf)"/>
+      <path d="M 3 0 C 18 -2.4 36 -1.6 49 0" fill="none" stroke="#BCE3B0" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+    </g>
+    <g transform="translate(353 228) rotate(10) scale(0.95)">
+      <path d="M 0 0 C 12 -15 38 -17 54 0 C 38 17 12 15 0 0 Z" fill="url(#timber-leaf)"/>
+      <path d="M 3 0 C 18 -2.4 36 -1.6 49 0" fill="none" stroke="#BCE3B0" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+    </g>
+    <g transform="translate(173 175) rotate(214) scale(1.05)">
+      <path d="M 0 0 C 12 -15 38 -17 54 0 C 38 17 12 15 0 0 Z" fill="url(#timber-leaf)"/>
+      <path d="M 3 0 C 18 -2.4 36 -1.6 49 0" fill="none" stroke="#BCE3B0" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+    </g>
 
     <!-- 树干本体：微锥度，底部根脚外张 -->
     <path fill="url(#timber-trunk)" d="M 212 116

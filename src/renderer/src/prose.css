@@ -1,15 +1,15 @@
-/* Markdown 排版（prose）：纸张卡片 + 精细化中文阅读样式 */
-/* 字号 / 宽度 / 字体由设置页经 CSS 变量控制（见 utils/settings.ts applyAppearance） */
+/* Markdown 排版（prose）：品牌纸张卡片 + 精细化中文阅读样式
+   颜色/字号全部消费 brand-tokens.css；字号仍可由设置页 --reader-font-size 覆盖 */
 .prose {
   max-width: var(--reader-width, 80%);
   margin: 28px auto 80px;
   padding: 44px 56px;
   background: var(--paper);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
-  font-size: var(--reader-font-size, 15px);
+  font-size: var(--reader-font-size, var(--md-B1-font-size));
   font-family: var(--reader-font-family, inherit);
-  line-height: 1.9;
+  line-height: 1.65;
   color: var(--ink);
   user-select: text;
   word-break: break-word;
@@ -18,19 +18,23 @@
 .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
   color: var(--ink);
   line-height: 1.45;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 .prose h1 {
-  font-size: 26px; margin: 0 0 20px; padding-bottom: 14px;
-  border-bottom: 2px solid var(--line); letter-spacing: 0.3px;
+  font-size: var(--md-H1-font-size); line-height: var(--md-H1-line-height);
+  margin: 0 0 20px; padding-bottom: 14px;
+  border-bottom: 1px solid var(--line); letter-spacing: 0.3px;
 }
 .prose h2 {
-  font-size: 20px; margin: 40px 0 12px; padding-top: 12px;
+  font-size: var(--md-H2-font-size); line-height: var(--md-H2-line-height);
+  margin: 36px 0 12px; padding-top: 12px;
   border-top: 1px solid var(--line);
 }
 .prose h2::before { content: "§ "; color: var(--accent); font-weight: 400; }
-.prose h3 { font-size: 17px; margin: 28px 0 8px; }
+.prose h3 { font-size: 16px; margin: 28px 0 8px; }
 .prose h4 { font-size: 15px; margin: 22px 0 6px; }
+.prose h5 { font-size: 14px; margin: 18px 0 6px; }
+.prose h6 { font-size: 13px; margin: 16px 0 6px; color: var(--ink2); }
 
 .prose p { margin: 10px 0; }
 .prose ul, .prose ol { margin: 8px 0 12px; padding-left: 26px; }
@@ -42,22 +46,24 @@
 
 .prose blockquote {
   margin: 14px 0; padding: 12px 18px;
-  border-left: 4px solid var(--accent);
+  border-left: 3px solid var(--accent);
   background: var(--accent-soft);
-  border-radius: 0 10px 10px 0;
-  color: var(--ink2); font-size: 14px;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  color: var(--ink2); font-size: var(--md-B2-font-size);
 }
 .prose blockquote p { margin: 3px 0; }
 
 .prose code {
-  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
-  font-size: 0.85em; background: var(--accent-soft); padding: 1.5px 6px;
-  border-radius: 5px; color: #c7254e;
+  font-family: var(--font-mono);
+  font-size: 0.9em; background: var(--Fills-F1); padding: 1.5px 6px;
+  border-radius: var(--radius-sm); color: var(--Syntax-Punctuation);
 }
 .prose pre {
-  background: #1e2430; color: #dbe4f0; padding: 16px 18px;
-  border-radius: 10px; overflow-x: auto; margin: 14px 0;
-  font-size: 12.8px; line-height: 1.7;
+  background: var(--Bg-Secondary); color: var(--ink);
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--code-block-radius); overflow-x: auto; margin: 14px 0;
+  font-size: var(--md-code-font-size); line-height: var(--md-code-line-height);
 }
 .prose pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
 
@@ -70,35 +76,35 @@
 /* HTML 块的预览承载真实渲染的 HTML：用纸张底色与正文墨色，而非代码块暗色面板——
    否则用户 HTML 自带浅色背景时，文字继承暗面板的浅色，糊成一片看不清 */
 .prose .vditor-wysiwyg__block[data-type='html-block'] > pre.vditor-wysiwyg__preview {
-  background: var(--paper); color: var(--ink);
+  background: var(--paper); color: var(--ink); border-color: var(--line);
 }
 
 .prose table {
   border-collapse: collapse; width: 100%; margin: 16px 0;
-  font-size: 13.5px; line-height: 1.7; display: block; overflow-x: auto;
+  font-size: var(--md-B3-font-size); line-height: 1.6; display: block; overflow-x: auto;
 }
-/* 表格 / 代码块横向滚动条：与全局同款窄滑块（原为系统默认粗条，突兀）；hover 加深提示可拖 */
+/* 表格 / 代码块横向滚动条：与全局同款窄滑块（半透明 Fills 级 thumb）；hover 加深提示可拖 */
 .prose table, .prose pre { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) transparent; }
 .prose table::-webkit-scrollbar { height: 8px; }
 .prose pre::-webkit-scrollbar { width: 8px; height: 8px; }
 .prose table::-webkit-scrollbar-thumb, .prose pre::-webkit-scrollbar-thumb {
-  background: var(--sb-thumb); border-radius: 4px; transition: background 0.15s;
+  background: var(--sb-thumb); border-radius: var(--radius-sm);
+  transition: background var(--duration-default) var(--ease-out);
 }
-.prose table::-webkit-scrollbar-thumb:hover, .prose pre::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
+.prose table::-webkit-scrollbar-thumb:hover, .prose pre::-webkit-scrollbar-thumb:hover {
+  background: var(--sb-thumb-hover);
+}
 .prose table::-webkit-scrollbar-track, .prose pre::-webkit-scrollbar-track { background: transparent; }
-[data-theme='dark'] .prose table::-webkit-scrollbar-thumb,
-[data-theme='dark'] .prose pre::-webkit-scrollbar-thumb { background: #3a4050; }
-[data-theme='dark'] .prose table::-webkit-scrollbar-thumb:hover,
-[data-theme='dark'] .prose pre::-webkit-scrollbar-thumb:hover { background: #4d5566; }
-/* 覆盖 Vditor 内置表格的硬编码浅色（#fafbfc 行底 / #fff 斑马纹 / #dfe2e5 边框）：
-   深色模式下这些颜色会显得刺眼发白，统一走主题变量。
+/* 覆盖 Vditor 内置表格的硬编码浅色（行底 / 斑马纹 / 边框），统一走主题令牌。
    注意斑马纹要压过 vditor 的 `.vditor-reset table tbody tr:nth-child(2n)`
    （specificity (0,2,3)），行底规则必须带 tbody 且至少三层类名。 */
 .vditor-reset.prose table tr { background-color: transparent; border-top: 1px solid var(--line); }
 .vditor-reset.prose table td, .vditor-reset.prose table th { border: 1px solid var(--line); }
 .prose th, .prose td { border: 1px solid var(--line); padding: 7px 11px; text-align: left; vertical-align: top; }
-.prose th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
-.vditor-reset.prose table tbody tr:nth-child(2n) { background-color: rgba(127, 127, 127, 0.05); }
+.prose th { background: var(--Fills-F1); font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.vditor-reset.prose table tbody tr:nth-child(2n) {
+  background-color: color-mix(in srgb, var(--Labels-Primary) 3%, transparent);
+}
 /* 列宽/行高（Typora 式平衡）：单元格允许换行，列的自动宽度以内容为上限封顶——
    既不因超长内容把表格撑成横向长条，也不让单个单元格堆出太多行 */
 .vditor-reset.prose table { table-layout: auto; min-width: 50%; }
@@ -113,26 +119,18 @@
   word-break: break-word;
   max-width: 18em;
 }
-/* 深色表格：表头与斑马纹改中性暗色，避免亮块 */
-[data-theme='dark'] .vditor-reset.prose table th { background: rgba(127, 127, 127, 0.16); }
-[data-theme='dark'] .vditor-reset.prose table tbody tr:nth-child(2n) { background-color: rgba(127, 127, 127, 0.07); }
 
-.prose img { max-width: 100%; border-radius: 8px; }
+.prose img { max-width: 100%; border-radius: var(--radius-xl); }
 .prose hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
 
-/* highlight.js 主题（亮色平铺于深色底上仅微调） */
-.prose pre .hljs-keyword, .prose pre .hljs-selector-tag { color: #7cb3ff; }
-.prose pre .hljs-string, .prose pre .hljs-attr { color: #a5d6a7; }
-.prose pre .hljs-comment { color: #6b7385; font-style: italic; }
-.prose pre .hljs-number, .prose pre .hljs-literal { color: #f0a35e; }
-.prose pre .hljs-function, .prose pre .hljs-title { color: #ffd479; }
-
-/* ---- 批注高亮 ---- */
-.prose::highlight(ann-open) { background: #fff1a8; color: inherit; text-decoration: underline #f5c451; }
-.prose::highlight(ann-done) { background: #dcf5e5; color: inherit; text-decoration: underline #34c77b; }
-
-/* ---- 深色主题下的 prose 微调 ---- */
-[data-theme='dark'] .prose code { color: #f0a35e; }
-[data-theme='dark'] .prose blockquote { color: var(--ink2); }
-[data-theme='dark'] .prose::highlight(ann-open) { background: #6b5d1f; color: #f5e9c8; text-decoration-color: #a8871e; }
-[data-theme='dark'] .prose::highlight(ann-done) { background: #1d4030; color: #b8e6cc; text-decoration-color: #2e9e68; }
+/* ---- 批注高亮：功能色（批注中 = 品牌黄 / 已完成 = 正绿），透明度随深浅主题自适应 ---- */
+.prose::highlight(ann-open) {
+  background: var(--Others-LightYellowBg);
+  color: inherit;
+  text-decoration: underline var(--Colors-Orange);
+}
+.prose::highlight(ann-done) {
+  background: var(--Others-LightGreenBg);
+  color: inherit;
+  text-decoration: underline var(--Colors-PositiveGreen);
+}

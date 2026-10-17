@@ -1,0 +1,184 @@
+/* Kimi 品牌设计令牌（项目适配版）
+   基准：Mind-Forge Brand/design-tokens.css
+   适配：深色选择器改为 [data-theme='dark']（同时兼容 html.dark）；
+        仅保留 Timber 实际使用的 token，营销色板不引入。
+   由 main.tsx 在 styles.css / prose.css 之前引入，全局变量在此定义、在样式文件中消费。 */
+
+:root {
+  /* ---------- 字体 ---------- */
+  --system-fonts: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "微软雅黑", sans-serif;
+  --title-fonts: "MiSans VF", var(--system-fonts);
+  --font-mono: "Geist Mono", "SF Mono", Monaco, Inconsolata, "Fira Code",
+    "Droid Sans Mono", "Source Code Pro", Consolas, "Courier New", monospace;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ---------- UI 字号梯度 ---------- */
+  --ui-T1-font-size: 18px;  --ui-T1-line-height: 26px;
+  --ui-T2-font-size: 16px;  --ui-T2-line-height: 24px;
+  --ui-B1-font-size: 15px;  --ui-B1-line-height: 22px;
+  --ui-B2-font-size: 14px;  --ui-B2-line-height: 20px;
+  --ui-C1-font-size: 12px;  --ui-C1-line-height: 18px;
+  --ui-C2-font-size: 10px;  --ui-C2-line-height: 14px;
+
+  /* ---------- Markdown 内容字号 ---------- */
+  --md-H1-font-size: 20px;  --md-H1-line-height: 32px;
+  --md-H2-font-size: 18px;  --md-H2-line-height: 28px;
+  --md-B1-font-size: 16px;  --md-B1-line-height: 26px;
+  --md-B2-font-size: 15px;  --md-B2-line-height: 24px;
+  --md-B3-font-size: 14px;  --md-B3-line-height: 22px;
+  --md-code-font-size: 14px; --md-code-line-height: 22px;
+
+  /* ---------- 品牌蓝 ---------- */
+  --Colors-KMBlue: #1783ff;
+  --Colors-KMBlue-hover: #167ff7;
+  --Colors-KMBlue-active: #167cf2;
+  --Others-KMBlue10: #1783ff1a;
+  --Others-KMBlueDisabled: #1783ff66;
+  --Others-TextSelected: #1783ff33;
+  --Others-LightBlueBg: #e8f3ff;
+
+  /* ---------- 功能色 ---------- */
+  --Colors-Red: #ff3849;           --Colors-Red-hover: #f73647;           --Colors-Red-active: #f23545;
+  --Colors-PositiveGreen: #16c456; --Colors-PositiveGreen-hover: #15be53; --Colors-PositiveGreen-active: #15ba52;
+  --Colors-Yellow: #ffd230;
+  --Colors-Orange: #ff9500;        --Colors-Orange-hover: #f79100;        --Colors-Orange-active: #f28e00;
+  --Colors-Purple: #985ffb;
+  --Others-LightRedBg: #ff4d4d1a;
+  --Others-LightOrangeBg: #ff95001a;
+  --Others-LightGreenBg: #16c4561a;
+  --Others-LightYellowBg: #ffc80033;
+
+  /* ---------- 背景层级 ---------- */
+  --Bg-Primary: #fff;            --Bg-Primary-hover: #f7f7f7;   --Bg-Primary-active: #f2f2f2;
+  --Bg-Primary90: #ffffffe6;
+  --Bg-Primary70: #ffffffb3;
+  --Bg-Secondary: #f5f5f5;       --Bg-Secondary-hover: #eee;    --Bg-Secondary-active: #e9e9e9;
+  --Bg-Tertiary: #fff;
+  --Bg-Quaternary: #fff;
+  --Bg-GroundPC: #f9fbfc;
+
+  /* ---------- 文字标签（透明度体系） ---------- */
+  --Labels-Primary: #000000e6;
+  --Labels-Secondary: #0009;
+  --Labels-Tertiary: #00000073;
+  --Labels-Quaternary: #0000004d;
+
+  /* ---------- 填充 / 分割线 ---------- */
+  --Fills-F1: #00000008; --Fills-F1-hover: #0000000f; --Fills-F1-active: #00000014;
+  --Fills-F2: #0000000d; --Fills-F2-hover: #00000014; --Fills-F2-active: #00000019;
+  --Fills-F3: #00000026; --Fills-F3-hover: #0000002d; --Fills-F3-active: #00000031;
+  --Fills-F4: #00000040; --Fills-F4-hover: #00000045; --Fills-F4-active: #00000049;
+  --Separators-S1: #00000021; --Separators-S1-hover: #00000028; --Separators-S1-active: #0000002c;
+
+  /* ---------- 遮罩 ---------- */
+  --MaskBg-Light: #0000001a;
+  --MaskBg-Base: #0006;
+  --MaskBg-Dark: #0009;
+  --MaskBg-ToastPC: #2b2b2b;
+  --MaskBg-ToastIOS: #454545e6;
+
+  /* ---------- 恒色 ---------- */
+  --Always-White: #fff;
+  --Always-WhiteSecondary: #ffffffd6;
+  --Always-WhiteTertiary: #ffffff8f;
+  --Always-WhiteQuaternary: #ffffff6b;
+  --Always-Black: #000;
+
+  /* ---------- 代码语法高亮（One Light） ---------- */
+  --Syntax-Keyword: #a626a4;
+  --Syntax-String: #50a14f;
+  --Syntax-Literal: #986801;
+  --Syntax-Comment: #a1a1a1;
+  --Syntax-Metadata: #c18401;
+  --Syntax-Punctuation: #e45649;
+  --Syntax-Mark: #526fff;
+
+  /* ---------- 圆角 ---------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --code-block-radius: 12px;
+  --radius-full: 9999px;
+
+  /* ---------- 阴影（低透明度弥散） ---------- */
+  --shadow-xs: 0 1px 2px 0 #00000014;
+  --shadow-card: 0 4px 16px 0 #0000001a;
+  --shadow-pop: 0 12px 40px 0 #00000029;
+  --shadow-overlay: 0 25px 50px -12px #00000040;
+
+  /* ---------- 毛玻璃 ---------- */
+  --backdrop-header: blur(6px);
+  --backdrop-strong: blur(12px);
+
+  /* ---------- 动效 ---------- */
+  --duration-fast: 75ms;
+  --duration-default: 150ms;
+  --duration-panel: 300ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============ 深色模式（官方完整暗色调色板） ============ */
+[data-theme='dark'],
+html.dark {
+  --Colors-KMBlue: #1a88ff;
+  --Colors-KMBlue-hover: #258eff;
+  --Colors-KMBlue-active: #3194ff;
+  --Others-KMBlue10: #1a88ff1a;
+  --Others-KMBlueDisabled: #1a88ff66;
+  --Others-TextSelected: #1a88ff33;
+  --Others-LightBlueBg: #1e2a38;
+
+  --Colors-Red: #ff4756;
+  --Colors-Red-hover: #ff5a67;
+  --Colors-Red-active: #ff6b77;
+  --Colors-PositiveGreen: #16c456;
+  --Colors-Orange: #ff9f0a;
+  --Colors-Purple: #a16bff;
+  --Others-LightRedBg: #ff52521a;
+  --Others-LightOrangeBg: #ff9f0a1a;
+  --Others-LightGreenBg: #16c4561a;
+  --Others-LightYellowBg: #ffd23033;
+
+  --Bg-Primary: #121212;         --Bg-Primary-hover: #1e1e1e;  --Bg-Primary-active: #2a2a2a;
+  --Bg-Primary90: #121212e6;
+  --Bg-Primary70: #121212b3;
+  --Bg-Secondary: #1f1f1f;       --Bg-Secondary-hover: #2a2a2a; --Bg-Secondary-active: #353535;
+  --Bg-Tertiary: #292929;
+  --Bg-Quaternary: #4d4d4d;
+  --Bg-GroundPC: #161717;
+
+  --Labels-Primary: #ffffffd6;
+  --Labels-Secondary: #ffffff8f;
+  --Labels-Tertiary: #ffffff6b;
+  --Labels-Quaternary: #ffffff42;
+
+  --Fills-F1: #ffffff0d; --Fills-F1-hover: #ffffff19; --Fills-F1-active: #ffffff25;
+  --Fills-F2: #ffffff1a; --Fills-F2-hover: #ffffff25; --Fills-F2-active: #ffffff30;
+  --Fills-F3: #ffffff2e; --Fills-F3-hover: #ffffff38; --Fills-F3-active: #ffffff43;
+  --Fills-F4: #ffffff40; --Fills-F4-hover: #ffffff49; --Fills-F4-active: #ffffff53;
+  --Separators-S1: #ffffff1f; --Separators-S1-hover: #ffffff2a; --Separators-S1-active: #ffffff35;
+
+  --MaskBg-Light: #0000004d;
+  --MaskBg-ToastPC: #404040;
+  --MaskBg-ToastIOS: #595959e6;
+
+  /* One Dark 风格语法高亮 */
+  --Syntax-Keyword: #d55fde;
+  --Syntax-String: #89ca78;
+  --Syntax-Literal: #d19a66;
+  --Syntax-Comment: #5c6370;
+  --Syntax-Metadata: #e5c07b;
+  --Syntax-Punctuation: #ef596f;
+  --Syntax-Mark: #2bbac5;
+}

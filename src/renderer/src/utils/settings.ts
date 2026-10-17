@@ -24,7 +24,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
-  fontSize: 15,
+  fontSize: 16,
   contentWidth: 80,
   serifFont: true,
   defaultMode: 'read',
