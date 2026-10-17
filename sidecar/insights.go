@@ -5,6 +5,8 @@ package main
 // 提取（Go 文件走 go/ast，其余语言按正则）、Electron IPC 通道配对边、
 // git churn 热度与 Tarjan 环检测。
 // 结果缓存于 <项目>/.timber/arch/<sha>.insights.json（tmp+rename 原子写）。
+// analyzeProject 为 spec 与 insights 两端点的公共分析入口：文件枚举、import
+// 解析、符号、行数、git churn、IPC 配对只跑一遍，两端点各从产物组装输出。
 
 import (
 	"bytes"
@@ -119,16 +121,16 @@ func (s *server) handleArchInsights(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	files, err := collectSourceFiles(p, ref, sha)
+	a, err := analyzeProject(p, ref, sha)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
-	if len(files) == 0 {
+	if len(a.files) == 0 {
 		writeJSON(w, 200, map[string]any{"ok": false, "error": "no-source"})
 		return
 	}
-	resp := buildInsights(p, files, sha)
+	resp := buildInsights(p, a)
 	data, err := json.Marshal(resp)
 	if err != nil {
 		writeError(w, 500, err.Error())
@@ -152,40 +154,19 @@ type fileInfo struct {
 	lines   int
 }
 
-func buildInsights(p *Project, files []srcFile, sha string) *insightsResp {
-	groups := groupDirs(files)
-	dirs := make([]string, 0, len(groups))
-	for d := range groups {
-		dirs = append(dirs, d)
-	}
-	sortCompDirs(dirs)
-
-	// 预分析每个文件：import / 符号 / 行数（Go 文件走 go/ast）
-	infos := make(map[string]*fileInfo, len(files))
-	for _, f := range files {
-		infos[f.path] = analyzeFile(f)
-	}
-
-	// git churn：近 300 提交窗口内各文件的触及提交数（项目相对路径为键）
-	churn := gitChurn(p.Path, sha)
-
+// buildInsights 从共享分析产物组装 insights 响应（输出契约逐字段固定，变更须同步前端）。
+func buildInsights(p *Project, a *analysis) *insightsResp {
 	resp := &insightsResp{
-		OK: true, Sha: sha,
+		OK: true, Sha: a.sha,
 		Components: []*insightComp{},
 		Edges:      []*insightEdge{},
 		Cycles:     [][]string{},
 	}
-	idOf := map[string]string{}
 	hotspots := 0
-	// IPC 通道表：channel → 组件 id 集（按角色分三张表）
-	rendCh := map[string]map[string]bool{} // ipcRenderer.invoke/send/on（消费方，含 preload）
-	mainCh := map[string]map[string]bool{} // ipcMain.handle/on（提供方）
-	wcCh := map[string]map[string]bool{}   // webContents.send（主→渲染推送方）
 
-	for _, d := range dirs {
-		fs := groups[d]
-		id := kebabID(d)
-		idOf[d] = id
+	for _, d := range a.dirs {
+		fs := a.groups[d]
+		id := a.idOf[d]
 		label := path.Base(d)
 		if d == "." {
 			label = p.Name
@@ -197,9 +178,9 @@ func buildInsights(p *Project, files []srcFile, sha string) *insightsResp {
 		}
 		tf := make([]*insightFile, 0, len(fs))
 		for _, f := range fs {
-			fi := infos[f.path]
+			fi := a.infos[f.path]
 			comp.Lines += fi.lines
-			comp.Heat += churn[f.path]
+			comp.Heat += a.churn[f.path]
 			tf = append(tf, &insightFile{Path: f.path, Lines: fi.lines})
 			for _, sym := range fi.syms { // 按文件序、文件内顺序，上限 10
 				if len(comp.Symbols) >= maxCompSymbols {
@@ -207,7 +188,6 @@ func buildInsights(p *Project, files []srcFile, sha string) *insightsResp {
 				}
 				comp.Symbols = append(comp.Symbols, sym)
 			}
-			scanIpc(f, id, rendCh, mainCh, wcCh)
 		}
 		sort.Slice(tf, func(i, j int) bool { // 行数降序，并列按路径
 			if tf[i].Lines != tf[j].Lines {
@@ -225,11 +205,9 @@ func buildInsights(p *Project, files []srcFile, sha string) *insightsResp {
 		resp.Components = append(resp.Components, comp)
 	}
 
-	// import 边：与 spec 同一 resolver 聚合逻辑，import 来自预分析（Go 为 AST 结果）
-	extract := func(f srcFile) []string { return infos[f.path].imports }
-	counts := importEdges(p, groups, dirs, files, idOf, extract)
-	ie := make([]dirEdge, 0, len(counts))
-	for e := range counts {
+	// import 边：计数来自共享分析产物（与 spec 同一 resolver 聚合逻辑）
+	ie := make([]dirEdge, 0, len(a.counts))
+	for e := range a.counts {
 		ie = append(ie, e)
 	}
 	sort.Slice(ie, func(i, j int) bool {
@@ -240,68 +218,29 @@ func buildInsights(p *Project, files []srcFile, sha string) *insightsResp {
 	})
 	adj := map[string]map[string]bool{} // 环检测邻接表（组件 id）
 	for _, e := range ie {
-		from, to := idOf[e.from], idOf[e.to]
-		resp.Edges = append(resp.Edges, &insightEdge{From: from, To: to, Count: counts[e], Kind: "import"})
+		from, to := a.idOf[e.from], a.idOf[e.to]
+		resp.Edges = append(resp.Edges, &insightEdge{From: from, To: to, Count: a.counts[e], Kind: "import"})
 		addAdj(adj, from, to)
 	}
 
-	// ipc 边：同一 channel 两侧配对 —— invoke/send/on(ipcRenderer) 方 → handle/on(ipcMain)
-	// 所在组件；webContents.send 反向（主→渲染）。同组件自环丢弃，
-	// 同一对组件的多条 channel 聚合成一条边（count=通道数，channels 排序去重≤20）。
-	type pair struct{ from, to string }
-	ipcAgg := map[pair]map[string]bool{}
-	link := func(from, to, ch string) {
-		if from == to {
-			return
-		}
-		k := pair{from, to}
-		if ipcAgg[k] == nil {
-			ipcAgg[k] = map[string]bool{}
-		}
-		ipcAgg[k][ch] = true
-	}
-	for ch, consumers := range rendCh {
-		for m := range mainCh[ch] {
-			for c := range consumers {
-				link(c, m, ch)
-			}
-		}
-		for m := range wcCh[ch] {
-			for c := range consumers {
-				link(m, c, ch)
-			}
-		}
-	}
-	pairs := make([]pair, 0, len(ipcAgg))
-	for k := range ipcAgg {
-		pairs = append(pairs, k)
-	}
-	sort.Slice(pairs, func(i, j int) bool {
-		if pairs[i].from != pairs[j].from {
-			return pairs[i].from < pairs[j].from
-		}
-		return pairs[i].to < pairs[j].to
-	})
+	// ipc 边：同一 channel 两侧配对聚合（count=通道数不截断，channels 列出 ≤20）
 	ipcChanSet := map[string]bool{}
-	for _, k := range pairs {
-		chs := make([]string, 0, len(ipcAgg[k]))
-		for ch := range ipcAgg[k] {
-			chs = append(chs, ch)
+	for _, e := range aggregateIpcEdges(a.rendCh, a.mainCh, a.wcCh) {
+		chs := e.channels
+		for _, ch := range chs {
 			ipcChanSet[ch] = true
 		}
-		sort.Strings(chs)
-		count := len(chs)
 		if len(chs) > maxIpcChannels {
 			chs = chs[:maxIpcChannels]
 		}
-		resp.Edges = append(resp.Edges, &insightEdge{From: k.from, To: k.to, Count: count, Kind: "ipc", Channels: chs})
-		addAdj(adj, k.from, k.to)
+		resp.Edges = append(resp.Edges, &insightEdge{From: e.from, To: e.to, Count: len(e.channels), Kind: "ipc", Channels: chs})
+		addAdj(adj, e.from, e.to)
 	}
 
 	// 环检测：import+ipc 有向图上跑 Tarjan SCC，输出所有 size>1 的分量
-	ids := make([]string, 0, len(dirs))
-	for _, d := range dirs {
-		ids = append(ids, idOf[d])
+	ids := make([]string, 0, len(a.dirs))
+	for _, d := range a.dirs {
+		ids = append(ids, a.idOf[d])
 	}
 	resp.Cycles = tarjanCycles(ids, adj)
 
@@ -470,6 +409,59 @@ func scanIpc(f srcFile, compID string, rend, mainC, wc map[string]map[string]boo
 	for _, m := range reWebContSend.FindAllStringSubmatch(text, -1) {
 		add(wc, m[1])
 	}
+}
+
+// ipcEdge 一条跨组件 IPC 聚合边（组件 id 级）。
+type ipcEdge struct {
+	from, to string
+	channels []string // 配对通道名（排序去重，未截断）
+}
+
+// aggregateIpcEdges 配对 IPC 通道两侧成边：invoke/send/on(ipcRenderer) 方 →
+// handle/on(ipcMain) 所在组件；webContents.send 反向（主→渲染）。同组件自环丢弃，
+// 同一对组件的多条 channel 聚合成一条边；返回按 (from,to) 排序的边集。
+// spec 与 insights 共用：spec 取 len(channels) 作 label；insights 另截断 channels ≤20。
+func aggregateIpcEdges(rendCh, mainCh, wcCh map[string]map[string]bool) []ipcEdge {
+	type pair struct{ from, to string }
+	agg := map[pair]map[string]bool{}
+	link := func(from, to, ch string) {
+		if from == to {
+			return
+		}
+		k := pair{from, to}
+		if agg[k] == nil {
+			agg[k] = map[string]bool{}
+		}
+		agg[k][ch] = true
+	}
+	for ch, consumers := range rendCh {
+		for m := range mainCh[ch] {
+			for c := range consumers {
+				link(c, m, ch)
+			}
+		}
+		for m := range wcCh[ch] {
+			for c := range consumers {
+				link(m, c, ch)
+			}
+		}
+	}
+	edges := make([]ipcEdge, 0, len(agg))
+	for k, set := range agg {
+		chs := make([]string, 0, len(set))
+		for ch := range set {
+			chs = append(chs, ch)
+		}
+		sort.Strings(chs)
+		edges = append(edges, ipcEdge{from: k.from, to: k.to, channels: chs})
+	}
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].from != edges[j].from {
+			return edges[i].from < edges[j].from
+		}
+		return edges[i].to < edges[j].to
+	})
+	return edges
 }
 
 // ---- git churn ----

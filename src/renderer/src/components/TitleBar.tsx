@@ -3,10 +3,10 @@ import { useStore, type AppView } from '../store'
 import Logo from './Logo'
 
 const VIEWS: { key: AppView; label: string }[] = [
-  { key: 'history', label: '历史' },
-  { key: 'architecture', label: '架构' },
+  { key: 'docs', label: '文档' },
   { key: 'code', label: '代码' },
-  { key: 'docs', label: '文档' }
+  { key: 'architecture', label: '架构' },
+  { key: 'history', label: '历史' }
 ]
 
 export default function TitleBar() {
@@ -39,7 +39,7 @@ export default function TitleBar() {
         <span className="tb-name">Timber</span>
         {version && <span className="tb-version">{`v${version}`}</span>}
       </div>
-      {/* 主视图切换（历史/架构/代码/文档），拖拽区外才可点击 */}
+      {/* 主视图切换（文档/代码/架构/历史），拖拽区外才可点击 */}
       <nav className="tb-views">
         {VIEWS.map((v) => (
           <button

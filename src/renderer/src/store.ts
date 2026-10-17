@@ -281,12 +281,7 @@ interface State {
   sidebarWidth: number
   /** 右侧目录/批注面板宽度（px，左缘拖拽调整） */
   annPanelWidth: number
-  /** 全屏专注模式：隐藏左右侧栏，正文右侧以钢琴条呈现目录/批注入口 */
-  zenMode: boolean
-  /** 专注模式下展开的右侧浮层页签 */
-  zenPanel: 'toc' | 'ann' | null
-
-  /** 应用主视图（默认提交历史） */
+  /** 应用主视图（默认文档） */
   view: AppView
   /** 提交历史列表（分页追加） */
   commits: CommitInfo[]
@@ -327,8 +322,6 @@ interface State {
   toggleSidebar(): void
   setSidebarWidth(w: number): void
   setAnnPanelWidth(w: number): void
-  setZenMode(on: boolean): void
-  setZenPanel(p: 'toc' | 'ann' | null): void
 
   setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   openSettings(): void
@@ -475,10 +468,8 @@ export const useStore = create<State>((set, get) => ({
   extPageUrl: null,
   pendingLocate: null,
   ...loadLayout(),
-  zenMode: false,
-  zenPanel: null,
 
-  view: 'history',
+  view: 'docs',
   commits: [],
   commitsTotal: 0,
   commitsLoading: false,
@@ -508,16 +499,6 @@ export const useStore = create<State>((set, get) => ({
     const v = clamp(w, ANN_MIN_W, annDynMax(get().sidebarCollapsed, get().sidebarWidth))
     set({ annPanelWidth: v })
     saveLayout({ sidebarCollapsed: get().sidebarCollapsed, sidebarWidth: get().sidebarWidth, annPanelWidth: v })
-  },
-
-  setZenMode(on) {
-    set({ zenMode: on, zenPanel: on ? get().zenPanel : null })
-  },
-
-  setZenPanel(p) {
-    // 展开浮层时同步标签记忆的页签，AnnotationPanel 会跟随显示对应内容
-    if (p) get().patchActiveTab({ panel: p })
-    set({ zenPanel: p })
   },
 
   setView(v) {
@@ -1040,8 +1021,8 @@ export const useStore = create<State>((set, get) => ({
     if (next) {
       void loadTabInto(next, set, get)
     } else {
-      // 全部标签关闭：退出专注模式，避免侧栏被隐藏后无处恢复
-      set({ activeDoc: null, docError: null, draft: '', dirty: false, annotations: [], composeQuote: null, zenMode: false, zenPanel: null })
+      // 全部标签关闭：清空阅读区状态
+      set({ activeDoc: null, docError: null, draft: '', dirty: false, annotations: [], composeQuote: null })
     }
   },
 

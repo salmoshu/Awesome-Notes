@@ -25,8 +25,11 @@ function cacheDir(): string {
   return dir
 }
 
-function keyHash(cacheKey: string): string {
-  return createHash('sha256').update(cacheKey).digest('hex')
+/** 缓存键哈希：输入除 cacheKey 外含 spec 内容 —— spec 任何变化自动生成新缓存文件 */
+function keyHash(cacheKey: string, specJson: string): string {
+  return createHash('sha256')
+    .update(cacheKey + '\n' + specJson)
+    .digest('hex')
 }
 
 /** tmp+rename 原子写，避免渲染进程读到半截文件 */
@@ -36,11 +39,11 @@ function writeAtomic(path: string, content: string): void {
   renameSync(tmp, path)
 }
 
-/** 渲染 architecture spec 为自包含 HTML；按 cacheKey 的 sha256 缓存 */
+/** 渲染 architecture spec 为自包含 HTML；缓存键含 spec 内容（spec 变化即失效重渲） */
 export async function renderArchHtml(specJson: string, cacheKey: string): Promise<ArchResult> {
   try {
     const dir = cacheDir()
-    const hash = keyHash(cacheKey)
+    const hash = keyHash(cacheKey, specJson)
     const outPath = join(dir, `${hash}.html`)
     if (existsSync(outPath)) {
       return { ok: true, html: readFileSync(outPath, 'utf-8') }
@@ -90,7 +93,7 @@ export async function renderArchHtml(specJson: string, cacheKey: string): Promis
   }
 }
 
-/** 渲染并缓存 base/head 快照，再经 architecture-delta.mjs 合成对比 HTML */
+/** 渲染并缓存 base/head 快照，再经 architecture-delta.mjs 合成对比 HTML（缓存键含两份 spec 内容） */
 export async function compareArchDelta(
   baseJson: string,
   headJson: string,
@@ -98,7 +101,7 @@ export async function compareArchDelta(
 ): Promise<ArchResult> {
   try {
     const dir = cacheDir()
-    const hash = keyHash(cacheKey)
+    const hash = keyHash(cacheKey, baseJson + '\n' + headJson)
     const outPath = join(dir, `${hash}-delta.html`)
     if (existsSync(outPath)) {
       const receiptPath = join(dir, `${hash}-delta.receipt.json`)

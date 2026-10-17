@@ -22,9 +22,13 @@ import (
 )
 
 // version 远端部署校验依据：远端 timberd 版本不一致时重新部署。
+// 0.4.1：arch spec v2（组件 sublabel 含行数/git churn 热度，connections 并入 IPC 通道边）；
+//
+//	spec 与 insights 合并为单次分析（analyzeProject），spec 缓存改 <sha>.v2.json。
+//
 // 0.4.0：新增 arch insights 端点（组件度量/符号/git churn 热度/IPC 通道配对/循环依赖检测）。
 // 0.3.0：Timber 更名；新增 git log/show 与架构 spec/delta 端点；批注目录 .timber（自动迁移 .awesome-notes）。
-const version = "0.4.0"
+const version = "0.4.1"
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:0", "listen address")

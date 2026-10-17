@@ -42,7 +42,8 @@ function filterTree(node: DocNode, kw: string): DocNode | null {
 
 function TreeNode({ node, depth }: { node: DocNode; depth: number }) {
   const codeFile = useStore((s) => s.codeFile)
-  const [open, setOpen] = useState(depth < 2)
+  // 目录默认折叠（0.5.2 起），点击目录名展开
+  const [open, setOpen] = useState(false)
   if (node.type === 'doc') {
     return (
       <div

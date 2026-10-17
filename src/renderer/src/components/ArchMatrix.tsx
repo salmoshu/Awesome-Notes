@@ -14,10 +14,21 @@ interface Props {
   refreshSeq: number
 }
 
-/** 单元格连接数：spec 的 connections 已按 (from,to) 聚合，label 形如 "×N"（N>1 时才有） */
-function connCount(label?: string): number {
-  const m = /^×(\d+)$/.exec(label ?? '')
-  return m ? parseInt(m[1], 10) : 1
+/** 单元格数据：import 计数与 IPC 通道数可并存（同 from-to 两类边都保留时） */
+interface CellData {
+  import?: number
+  ipc?: number
+}
+
+/**
+ * 解析连接 label："×N" 为 import 计数（N>1 时才有 label，无 label 视为 ×1）；
+ * "IPC ×N" 为 IPC 通道数（spec v2 起 IPC 边入图，id 带 -ipc 后缀）。
+ */
+function connKind(label?: string): { kind: 'import' | 'ipc'; n: number } {
+  const ipc = /^IPC ×(\d+)$/.exec(label ?? '')
+  if (ipc) return { kind: 'ipc', n: parseInt(ipc[1], 10) }
+  const imp = /^×(\d+)$/.exec(label ?? '')
+  return { kind: 'import', n: imp ? parseInt(imp[1], 10) : 1 }
 }
 
 export default function ArchMatrix({ refName, refreshSeq }: Props) {
@@ -62,14 +73,19 @@ export default function ArchMatrix({ refName, refreshSeq }: Props) {
   const matrix = useMemo(() => {
     const comps = (spec?.components ?? []).map((c) => ({ id: c.id, label: c.label ?? c.id }))
     const idx = new Map(comps.map((c, i) => [c.id, i]))
-    // `${row}:${col}` → 连接数（row 依赖 col）
-    const cells = new Map<string, number>()
+    // `${row}:${col}` → 单元格数据（row 依赖 col；import 与 IPC 边可并存于同一格）
+    const cells = new Map<string, CellData>()
     let conns = 0
     for (const c of spec?.connections ?? []) {
       const i = idx.get(c.from)
       const j = idx.get(c.to)
       if (i === undefined || j === undefined) continue
-      cells.set(`${i}:${j}`, connCount(c.label))
+      const { kind, n } = connKind(c.label)
+      const key = `${i}:${j}`
+      const cell = cells.get(key) ?? {}
+      if (kind === 'ipc') cell.ipc = (cell.ipc ?? 0) + n
+      else cell.import = (cell.import ?? 0) + n
+      cells.set(key, cell)
       conns++
     }
     // 环内组件集合与环上边集合（相邻节点对）
@@ -125,21 +141,29 @@ export default function ArchMatrix({ refName, refreshSeq }: Props) {
                 </th>
                 {matrix.comps.map((col, j) => {
                   if (i === j) return <td key={col.id} className="am-diag" />
-                  const n = matrix.cells.get(`${i}:${j}`)
+                  const cell = matrix.cells.get(`${i}:${j}`)
+                  // 显示值优先 import 计数；纯 IPC 单元格用 IPC 通道数（视觉另作区分）
+                  const n = cell?.import ?? cell?.ipc
                   // 深浅档：×1 浅、×2-4 中、≥5 深
                   const lvl = n === undefined ? 0 : n >= 5 ? 3 : n >= 2 ? 2 : 1
+                  const pureIpc = cell !== undefined && cell.import === undefined
                   const cls = [
                     lvl > 0 ? `am-hit am-l${lvl}` : '',
+                    pureIpc ? 'am-ipc' : '',
                     matrix.cycleCells.has(`${i}:${j}`) ? 'am-on-cycle' : ''
                   ]
                     .filter(Boolean)
                     .join(' ')
+                  const title =
+                    cell === undefined
+                      ? undefined
+                      : cell.import !== undefined && cell.ipc !== undefined
+                        ? `${row.label} → ${col.label} ×${cell.import} · IPC 通道 ×${cell.ipc}`
+                        : pureIpc
+                          ? `${row.label} → ${col.label} IPC ×${cell.ipc}`
+                          : `${row.label} → ${col.label} ×${cell.import}`
                   return (
-                    <td
-                      key={col.id}
-                      className={cls || undefined}
-                      title={n !== undefined ? `${row.label} → ${col.label} ×${n}` : undefined}
-                    >
+                    <td key={col.id} className={cls || undefined} title={title}>
                       {n !== undefined && n >= 2 ? `×${n}` : ''}
                     </td>
                   )

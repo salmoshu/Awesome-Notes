@@ -5,7 +5,6 @@ import EditorPane from './EditorPane'
 import Logo from './Logo'
 import TabsBar from './TabsBar'
 import FindBar from './FindBar'
-import PianoRail from './PianoRail'
 import { findTextRanges, scrollToRange, setTextHighlight } from '../utils/textRanges'
 import { rawBaseFor, origProjectId } from '../store'
 
@@ -41,9 +40,7 @@ export default function Reader() {
     setComposeQuote,
     activeProjectId,
     activeTabId,
-    closeTab,
-    zenMode,
-    setZenMode
+    closeTab
   } = useStore()
 
   const proseWrapRef = useRef<HTMLDivElement>(null)
@@ -226,14 +223,6 @@ export default function Reader() {
             ⟳
           </button>
         )}
-        <button
-          className={`rt-btn zen-toggle ${zenMode ? 'active' : ''}`}
-          onClick={() => setZenMode(!zenMode)}
-          title={zenMode ? '退出全屏专注 (Esc)' : '全屏专注：隐藏两侧边栏，目录 / 批注收起到右侧钢琴条'}
-          aria-pressed={zenMode}
-        >
-          ⛶
-        </button>
         {(isMd || activeDoc.ext === 'txt' || isHtml) && (
           <div className="seg icon-seg">
             <button
@@ -328,8 +317,6 @@ export default function Reader() {
           </button>
         )}
       </div>
-
-      {zenMode && <PianoRail />}
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Vditor from 'vditor'
 import hljs from 'highlight.js/lib/common'
 import 'vditor/dist/index.css'
@@ -215,6 +216,72 @@ function wrapSoftBreaks(html: string): string {
   return out
 }
 
+/** 图片最大化查看（lightbox）浮层所需的信息 */
+interface LightboxInfo {
+  /** 展示地址（渲染后已重写为 sidecar /raw URL；外链 / data 图为原地址） */
+  src: string
+  /** 文档内原始引用路径（data-an-orig-src），信息条展示用 */
+  origSrc: string
+  alt: string
+}
+
+/** 阅读模式图片点击放大浮层：点遮罩 / Esc / ✕ 关闭，再点图片在适应窗口与原始尺寸间切换 */
+function ImageLightbox({ info, onClose }: { info: LightboxInfo; onClose: () => void }) {
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [fit, setFit] = useState(true)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  // 打开期间：Esc 关闭、禁止背景滚动。Esc 在 capture 阶段拦截并 stopPropagation——
+  // 浮层是最顶层，独占本次 Esc，避免 App.tsx 专注模式等 window 级处理同时触发
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // 点击正文图片后焦点留在编辑器里，浮层打开期间按键会直接改文档，先移走焦点
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [onClose])
+
+  // 缓存命中的图片可能在 onLoad 绑定前就加载完成，挂载后补查一次
+  useEffect(() => {
+    const img = imgRef.current
+    if (img?.complete && img.naturalWidth) setNatural({ w: img.naturalWidth, h: img.naturalHeight })
+  }, [])
+
+  // 文档内引用路径常带 URL 编码（空格等），信息条展示时还原
+  let label = info.origSrc
+  try { label = decodeURIComponent(info.origSrc) } catch { /* 保留原值 */ }
+
+  return (
+    <div className="img-lightbox" onClick={onClose}>
+      <button className="img-lightbox-close" onClick={onClose} title="关闭 (Esc)">✕</button>
+      <div className={`img-lightbox-stage${fit ? '' : ' orig'}`}>
+        <img
+          ref={imgRef}
+          src={info.src}
+          alt={info.alt}
+          onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+          onError={() => setFailed(true)}
+          onClick={(e) => { e.stopPropagation(); setFit((v) => !v) }}
+        />
+      </div>
+      {/* 信息条随浮层即显：路径先出，自然尺寸等 onLoad 后补上；加载失败给出提示 */}
+      <div className="img-lightbox-meta">
+        {label}{failed ? ' · 图片加载失败' : natural ? ` · ${natural.w} × ${natural.h}` : ''}
+      </div>
+    </div>
+  )
+}
+
 /** 阅读模式：保留渲染排版，正文始终可编辑，双击仅执行正常的文字选择。 */
 export default function MarkdownView({ annotations, onSelectAnn }: Props) {
   const ref = useRef<HTMLDivElement>(null)
@@ -227,6 +294,9 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
   const annotationsRef = useRef(annotations)
   const selectRef = useRef(onSelectAnn)
   const refreshRef = useRef<(() => void) | null>(null)
+  // 图片最大化查看浮层（本地状态，不进全局 store）
+  const [lightbox, setLightbox] = useState<LightboxInfo | null>(null)
+  const closeLightbox = useCallback(() => setLightbox(null), [])
   annotationsRef.current = annotations
   selectRef.current = onSelectAnn
 
@@ -352,6 +422,20 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
         event.preventDefault()
         event.stopPropagation()
         openLink(link.getAttribute('href') ?? '')
+        return
+      }
+      // 正文图片点击打开最大化查看浮层（事件委托，不逐图绑定）；
+      // 源码模式本组件不挂载，这里读 store 的 mode 再挡一层
+      const image = (event.target as HTMLElement).closest<HTMLImageElement>('.prose img')
+      if (image && useStore.getState().mode === 'read') {
+        // 拦截本次点击，避免 Vditor 的图片气泡在浮层背后弹出（与上面链接分支同理）
+        event.preventDefault()
+        event.stopPropagation()
+        setLightbox({
+          src: image.src,
+          origSrc: image.dataset.anOrigSrc ?? image.getAttribute('src') ?? '',
+          alt: image.alt
+        })
         return
       }
       const hit = annotationRanges.find(({ range }) => [...range.getClientRects()].some((rect) =>
@@ -483,6 +567,8 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
       syncDraft()
       disposed = true
       refreshRef.current = null
+      // 切换文档/标签时关掉可能开着的图片浮层
+      setLightbox(null)
       unsubscribe?.()
       observer.disconnect()
       popObserver?.disconnect()
@@ -500,7 +586,14 @@ export default function MarkdownView({ annotations, onSelectAnn }: Props) {
     }
   }, [docPath, projectId, tabId, theme])
 
-  return <div className="markdown-editor" ref={ref} />
+  return (
+    <>
+      <div className="markdown-editor" ref={ref} />
+      {/* 浮层 portal 到 body：容器上的原生点击委托（链接/图片/批注）不会拦截浮层内点击，
+          也不会被 Vditor 对容器 innerHTML 的重写波及 */}
+      {lightbox && createPortal(<ImageLightbox info={lightbox} onClose={closeLightbox} />, document.body)}
+    </>
+  )
 }
 
 /** 计算选区在渲染全文中的 quote/prefix/suffix。 */

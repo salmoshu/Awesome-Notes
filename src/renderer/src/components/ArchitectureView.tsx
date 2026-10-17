@@ -32,6 +32,26 @@ export function applyArchTheme(html: string, theme: ArchTheme): string {
   return html.replace('data-theme="dark"', `data-theme="${theme}"`)
 }
 
+/** 向 archify 自包含 HTML 注入滚动条样式（0.5.2）：10px 细滚动条、圆角半透明 thumb、hover 加深一档。
+ *  iframe 内不感知应用主题变量，按 archify 的 data-theme 属性写死深浅两套色值 */
+export function injectArchChrome(html: string): string {
+  const style = [
+    '<style id="timber-arch-chrome">',
+    '::-webkit-scrollbar { width: 10px; height: 10px; }',
+    '::-webkit-scrollbar-track { background: transparent; }',
+    '::-webkit-scrollbar-thumb { border-radius: 5px; background: rgba(192, 198, 208, 0.8); }',
+    '::-webkit-scrollbar-thumb:hover { background: #aab2c0; }',
+    "html[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(58, 64, 80, 0.85); }",
+    "html[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: #2e3340; }",
+    "html[data-theme='light'] { scrollbar-width: thin; scrollbar-color: #c0c6d0 transparent; }",
+    "html[data-theme='dark'] { scrollbar-width: thin; scrollbar-color: #3a4050 transparent; }",
+    '</style>'
+  ].join('\n')
+  const i = html.indexOf('</head>')
+  // archify 输出为标准 HTML（必含 </head>）；异常结构兜底追加到末尾
+  return i < 0 ? html + style : `${html.slice(0, i)}${style}\n${html.slice(i)}`
+}
+
 function systemTheme(): ArchTheme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -73,8 +93,8 @@ export default function ArchitectureView() {
     setTheme(next)
   }
 
-  // iframe srcDoc 前统一套用主题（缓存命中分支同走此路径，切换主题即时生效）
-  const themedHtml = useMemo(() => (html ? applyArchTheme(html, theme) : null), [html, theme])
+  // iframe srcDoc 前统一套用主题并注入滚动条样式（缓存命中分支同走此路径，切换主题即时生效）
+  const themedHtml = useMemo(() => (html ? injectArchChrome(applyArchTheme(html, theme)) : null), [html, theme])
 
   // 可选 ref 清单（HEAD + branches + tags）
   useEffect(() => {
