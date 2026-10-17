@@ -1483,3 +1483,182 @@ body.col-resizing iframe, body.col-resizing webview { pointer-events: none; }
 [data-theme='dark'] .hljs-type, [data-theme='dark'] .hljs-class { color: #ff7b72; }
 [data-theme='dark'] .hljs-deletion { color: #ffa198; }
 [data-theme='dark'] .hljs-meta { color: #e3b341; }
+
+/* ---- 架构矩阵/洞察/主题（0.5.1） ---- */
+/* 主题切换按钮：样式对齐 av-refresh，并排置于工具栏右侧（刷新按钮去掉 auto 左外边距） */
+.av-theme {
+  margin-left: auto; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--arch-bg); color: var(--ink2); padding: 4px 12px; font-size: 13px;
+}
+.av-theme:hover { border-color: var(--arch-accent); color: var(--arch-accent); }
+.av-toolbar .av-refresh { margin-left: 0; }
+
+/* 矩阵（DSM）：行=依赖方、列=被依赖方；行列头 sticky，整体可滚动 */
+.av-matrix-wrap { height: 100%; display: flex; flex-direction: column; background: var(--arch-bg); }
+.av-matrix-summary {
+  flex: none; padding: 8px 16px; font-size: 12.5px; color: var(--ink2);
+  background: var(--arch-paper); border-bottom: 1px solid var(--line);
+}
+.av-matrix-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; }
+.av-matrix { border-collapse: separate; border-spacing: 2px; }
+.av-matrix th { font-weight: 500; }
+.av-matrix thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--arch-bg);
+  vertical-align: bottom; padding: 2px;
+}
+/* 列头竖排文字，控制列宽 */
+.av-matrix thead th span {
+  display: block; margin: 0 auto; writing-mode: vertical-rl; text-orientation: mixed;
+  max-height: 110px; overflow: hidden; white-space: nowrap;
+  font-size: 11px; color: var(--ink2);
+}
+.av-matrix thead th.am-corner { left: 0; z-index: 4; }
+.av-matrix tbody th {
+  position: sticky; left: 0; z-index: 1; background: var(--arch-bg);
+  padding: 2px 8px; text-align: right; white-space: nowrap;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11.5px; color: var(--ink);
+}
+.av-matrix td {
+  width: 26px; min-width: 26px; height: 22px; border-radius: 4px;
+  background: var(--sb-hover); text-align: center;
+  font-size: 10px; color: var(--ink2); font-variant-numeric: tabular-nums;
+}
+.av-matrix td.am-diag { background: var(--line); opacity: 0.45; }
+/* 连接数深浅三档：×1 浅、×2-4 中、≥5 深 */
+.av-matrix td.am-l1 { background: color-mix(in srgb, var(--arch-accent) 22%, transparent); }
+.av-matrix td.am-l2 { background: color-mix(in srgb, var(--arch-accent) 48%, transparent); color: var(--ink); }
+.av-matrix td.am-l3 { background: color-mix(in srgb, var(--arch-accent) 85%, transparent); color: #fff; }
+/* 循环依赖：环内组件名警示色，环上边红框 */
+.av-matrix th.am-cycle { color: var(--danger); font-weight: 700; }
+.av-matrix td.am-on-cycle { box-shadow: inset 0 0 0 2px var(--danger); }
+
+/* 洞察：分区卡片式布局 */
+.av-insights { height: 100%; overflow-y: auto; padding: 16px 20px; background: var(--arch-bg); }
+.ai-section {
+  margin-bottom: 16px; padding: 14px 16px;
+  background: var(--arch-paper); border: 1px solid var(--line); border-radius: var(--arch-radius);
+}
+.ai-title { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.ai-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.ai-card {
+  flex: 1; min-width: 96px; padding: 12px; text-align: center;
+  background: var(--arch-bg); border: 1px solid var(--line); border-radius: var(--arch-radius);
+}
+.ai-num { font-size: 22px; font-weight: 700; color: var(--arch-accent); font-variant-numeric: tabular-nums; }
+.ai-cap { margin-top: 2px; font-size: 12px; color: var(--ink3); }
+.ai-ok { font-size: 13px; color: #16a34a; }
+.ai-none { font-size: 12.5px; color: var(--ink3); }
+.ai-cycle {
+  padding: 4px 0; font-size: 12.5px; color: var(--danger); user-select: text;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.ai-hot { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-size: 12.5px; }
+.ai-hot-label {
+  flex: none; width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink); font-weight: 600;
+}
+.ai-hot-bar { flex: 1; height: 10px; border-radius: 5px; overflow: hidden; background: var(--sb-hover); }
+.ai-hot-bar > span { display: block; height: 100%; border-radius: 5px; background: var(--arch-accent); }
+.ai-hot-n { flex: none; font-size: 11.5px; color: var(--ink3); }
+.ai-edge { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12.5px; }
+.ai-kind {
+  flex: none; padding: 0 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
+  background: var(--accent-soft); color: var(--arch-accent);
+}
+.ai-kind-ipc { background: #fef3c7; color: #b45309; }
+[data-theme='dark'] .ai-kind-ipc { background: #3a301b; color: #fbbf24; }
+.ai-edge-text { color: var(--ink2); user-select: text; }
+.ai-ipc { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 12.5px; }
+.ai-ipc-ch {
+  color: var(--arch-accent); user-select: text;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.ai-ipc-route { color: var(--ink3); font-size: 12px; }
+.ai-comp { border-top: 1px solid var(--line); padding: 6px 0; }
+.ai-comp:first-of-type { border-top: none; }
+.ai-comp summary { cursor: pointer; list-style: none; font-size: 12.5px; color: var(--ink); }
+.ai-comp summary::before {
+  content: '▸'; display: inline-block; margin-right: 6px;
+  color: var(--ink3); transition: transform 0.12s;
+}
+.ai-comp[open] summary::before { transform: rotate(90deg); }
+.ai-comp-label { font-weight: 600; }
+.ai-comp-dir, .ai-comp-meta { color: var(--ink3); }
+.ai-comp-body { margin: 8px 0 4px 18px; }
+.ai-sub-title { margin: 8px 0 4px; font-size: 11.5px; font-weight: 700; color: var(--ink3); }
+.ai-file, .ai-sym { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 12px; }
+.ai-file-path {
+  flex: 1; min-width: 0; word-break: break-all; user-select: text; color: var(--ink2);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.ai-file-lines { flex: none; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.ai-sym-name {
+  color: var(--ink); user-select: text;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.ai-sym-kind {
+  flex: none; padding: 0 6px; border-radius: 4px; font-size: 10.5px;
+  background: var(--accent-soft); color: var(--arch-accent);
+}
+.ai-sym-file {
+  color: var(--ink3); word-break: break-all; user-select: text;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+/* ---- Logo 动画（0.5.1） ---- */
+/* 入场（约 1.2s，只播一次，forwards 定格终态）：髓心先淡入，11 圈年轮由内向外逐圈描画
+   （dashoffset 由周长 --timber-c → 0），裂纹与木节最后淡入；stagger 的 animationDelay 在 Logo.tsx 内联 */
+@keyframes timber-fade-in {
+  from { opacity: 0; }
+  /* 不写 to：终值回落到元素自身的 opacity（裂纹/年轮等自带透明度属性），避免定格成 1 */
+}
+@keyframes timber-ring-grow {
+  from { stroke-dashoffset: var(--timber-c); }
+  to { stroke-dashoffset: 0; }
+}
+/* 常驻微动：入场结束后年轮组整体极缓慢呼吸（scale 1 ↔ 1.015，6s 一周期，务必克制） */
+@keyframes timber-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+/* 髓心微弱脉动 */
+@keyframes timber-pith-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.timber-logo .timber-ring {
+  stroke-dasharray: var(--timber-c);
+  animation: timber-ring-grow 0.3s ease-out both;
+}
+.timber-logo .timber-pith {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    timber-fade-in 0.18s ease-out both,
+    timber-pith-pulse 3s ease-in-out 1.3s infinite;
+}
+.timber-logo .timber-detail {
+  animation: timber-fade-in 0.2s ease-out 1s both;
+}
+.timber-logo .timber-breathe {
+  /* SVG 子元素的 CSS 缩放需显式指定变换原点：以自身包围盒中心（兼容写法），约在 (256 262) */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: timber-breathe 6s ease-in-out 1.3s infinite;
+}
+
+/* 减少动态偏好：禁用全部动画；此时年轮保持 dasharray 整圈、dashoffset 归 0，即直接呈现最终静态帧 */
+@media (prefers-reduced-motion: reduce) {
+  .timber-logo .timber-ring,
+  .timber-logo .timber-pith,
+  .timber-logo .timber-detail,
+  .timber-logo .timber-breathe {
+    animation: none;
+  }
+}
+
+/* ---- 文档 tab 右键菜单 / 刷新（0.5.1） ----
+ * tab 右键菜单复用已有 .ctx-menu 系列样式，标签栏刷新按钮复用 .rt-btn；
+ * 本段落预留给该功能的后续样式追加（新增规则只允许放在此段内） */

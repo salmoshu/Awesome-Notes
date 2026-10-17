@@ -521,30 +521,81 @@ func (r *resolver) resolve(target, fileDir string) (string, bool) {
 
 // ---- spec 构建 ----
 
-func buildSpec(p *Project, files []srcFile, sha string) *archSpec {
-	groups := groupDirs(files)
+// topDir 组件目录的第一层（boundary 键）；根组件返回 "\x00" 使其排最前。
+func topDir(d string) string {
+	if d == "." {
+		return "\x00"
+	}
+	if i := strings.IndexByte(d, '/'); i >= 0 {
+		return d[:i]
+	}
+	return d
+}
 
-	// 组件目录排序：按 boundary（第一层目录）分组，组内按目录名
-	dirs := make([]string, 0, len(groups))
-	for d := range groups {
-		dirs = append(dirs, d)
-	}
-	topOf := func(d string) string {
-		if d == "." {
-			return "\x00" // 根组件排最前
-		}
-		if i := strings.IndexByte(d, '/'); i >= 0 {
-			return d[:i]
-		}
-		return d
-	}
+// sortCompDirs 组件目录排序：按 boundary（第一层目录）分组，组内按目录名。
+// spec 与 insights 共用，保证两端点组件集合、id 与顺序完全一致。
+func sortCompDirs(dirs []string) {
 	sort.Slice(dirs, func(i, j int) bool {
-		ti, tj := topOf(dirs[i]), topOf(dirs[j])
+		ti, tj := topDir(dirs[i]), topDir(dirs[j])
 		if ti != tj {
 			return ti < tj
 		}
 		return dirs[i] < dirs[j]
 	})
+}
+
+// fileCompDir 文件所属组件目录（聚合后可能不等于父目录）。
+func fileCompDir(groups map[string][]srcFile, fileDir string) string {
+	for d := fileDir; ; d = path.Dir(d) {
+		if _, ok := groups[d]; ok {
+			return d
+		}
+		if d == "." || d == "/" {
+			return "."
+		}
+	}
+}
+
+// dirEdge 目录级有向边。
+type dirEdge struct{ from, to string }
+
+// importEdges 把 import 解析聚合为目录级边计数（spec 与 insights 共用）。
+// extract 为 import 提取器：spec 传正则版 extractImports；insights 对 Go 文件切到 AST 结果。
+func importEdges(p *Project, groups map[string][]srcFile, dirs []string, files []srcFile, idOf map[string]string, extract func(srcFile) []string) map[dirEdge]int {
+	rsv := newResolver(dirs, files)
+	rsv.goModPath = detectGoModule(p.Path, files)
+	counts := map[dirEdge]int{}
+	for _, f := range files {
+		fileDir := path.Dir(f.path)
+		if fileDir == "/" {
+			fileDir = "."
+		}
+		from := fileCompDir(groups, fileDir)
+		if _, ok := idOf[from]; !ok {
+			continue // 文件所属组件目录不在最终组件集中（理论上不发生）
+		}
+		for _, target := range extract(f) {
+			to, ok := rsv.resolve(target, fileDir)
+			if !ok || to == from {
+				continue // 外部包与自环丢弃
+			}
+			if _, ok := idOf[to]; !ok {
+				continue
+			}
+			counts[dirEdge{from, to}]++
+		}
+	}
+	return counts
+}
+
+func buildSpec(p *Project, files []srcFile, sha string) *archSpec {
+	groups := groupDirs(files)
+
+	dirs := make([]string, 0, len(groups))
+	for d := range groups {
+		dirs = append(dirs, d)
+	}
+	sortCompDirs(dirs)
 
 	spec := &archSpec{
 		SchemaVersion: 1,
@@ -587,7 +638,7 @@ func buildSpec(p *Project, files []srcFile, sha string) *archSpec {
 	topGroups := map[string][]string{}
 	topOrder := []string{}
 	for _, d := range dirs {
-		top := topOf(d)
+		top := topDir(d)
 		if top == "\x00" {
 			continue
 		}
@@ -604,42 +655,8 @@ func buildSpec(p *Project, files []srcFile, sha string) *archSpec {
 	}
 
 	// 连接：import 解析聚合为目录级边
-	rsv := newResolver(dirs, files)
-	rsv.goModPath = detectGoModule(p.Path, files)
-	type edge struct{ from, to string }
-	counts := map[edge]int{}
-	for _, f := range files {
-		fileDir := path.Dir(f.path)
-		if fileDir == "/" {
-			fileDir = "."
-		}
-		from := fileDir
-		// 文件所属组件目录（聚合后可能不等于父目录）
-		for d := fileDir; ; d = path.Dir(d) {
-			if _, ok := groups[d]; ok {
-				from = d
-				break
-			}
-			if d == "." || d == "/" {
-				from = "."
-				break
-			}
-		}
-		if _, ok := idOf[from]; !ok {
-			continue // 文件所属组件目录不在最终组件集中（理论上不发生）
-		}
-		for _, target := range extractImports(f) {
-			to, ok := rsv.resolve(target, fileDir)
-			if !ok || to == from {
-				continue // 外部包与自环丢弃
-			}
-			if _, ok := idOf[to]; !ok {
-				continue
-			}
-			counts[edge{from, to}]++
-		}
-	}
-	edges := make([]edge, 0, len(counts))
+	counts := importEdges(p, groups, dirs, files, idOf, extractImports)
+	edges := make([]dirEdge, 0, len(counts))
 	for e := range counts {
 		edges = append(edges, e)
 	}

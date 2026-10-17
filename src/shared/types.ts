@@ -241,6 +241,59 @@ export interface ArchDeltaReceipt {
   [k: string]: unknown
 }
 
+// ---- 架构洞察（sidecar /api/projects/:id/arch/insights） ----
+
+/** 洞察符号条目（组件内的主要函数/类型等） */
+export interface ArchInsightSymbol {
+  name: string
+  kind: string
+  file: string
+}
+
+/** 洞察组件条目：目录级组件 + 规模与热度明细 */
+export interface ArchInsightComponent {
+  id: string
+  label: string
+  dir: string
+  type: string
+  files: number
+  lines: number
+  lang: string
+  /** 近 300 提交触及次数 */
+  heat: number
+  symbols?: ArchInsightSymbol[]
+  topFiles?: { path: string; lines: number }[]
+}
+
+/** 洞察连接：kind=import 为源码依赖；kind=ipc 为主/渲染进程通道（channels 为通道名清单） */
+export interface ArchInsightEdge {
+  from: string
+  to: string
+  count: number
+  kind: string
+  channels?: string[]
+}
+
+/** arch/insights 成功响应本体 */
+export interface ArchInsights {
+  ok: true
+  sha: string
+  components: ArchInsightComponent[]
+  edges: ArchInsightEdge[]
+  /** 循环依赖环（组件 id 序列，首尾相同，如 ["a","b","a"]） */
+  cycles: string[][]
+  stats: {
+    components: number
+    edges: number
+    cycles: number
+    ipcChannels: number
+    hotspots: number
+  }
+}
+
+/** arch/insights 响应：成功为 ArchInsights，失败为 { ok:false, error }（no-commits/unknown-ref/no-source/not-a-repo） */
+export type ArchInsightsResult = ArchInsights | { ok: false; error: string }
+
 // preload 暴露给渲染进程的桥
 export interface TimberBridge {
   getApiInfo(): Promise<ApiInfo>

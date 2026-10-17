@@ -360,6 +360,10 @@ interface State {
   openDoc(path: string): Promise<void>
   activateTab(id: string): Promise<void>
   closeTab(id: string): void
+  /** 关闭除 id 外的所有标签（含未保存修改的标签需确认；激活标签被关时切到 id） */
+  closeOtherTabs(id: string): void
+  /** 关闭 id 右侧的所有标签（含未保存修改的标签需确认；激活标签被关时切到 id） */
+  closeTabsToRight(id: string): void
   /** 固定标签（双击标签名，等效文件树双击） */
   pinTab(id: string): void
   /** 拖拽排序：把 fromId 标签移动到 toId 之前/之后（toId 为空则移到末尾） */
@@ -370,6 +374,8 @@ interface State {
   setMode(m: ViewMode): void
   setDraft(d: string): void
   saveDoc(): Promise<void>
+  /** 重新从磁盘读取当前文档（未保存修改将丢弃，需确认；图片不支持） */
+  refreshActiveDoc(): Promise<void>
   /**
    * 文件树操作（重命名/移动、复制、删除、新建目录、新建文档）。
    * 成功后静默重扫文件树并维护打开的标签（移动改路径、删除关闭），
@@ -1039,6 +1045,41 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
+  closeOtherTabs(id) {
+    const s = get()
+    const target = s.tabs.find((t) => t.id === id)
+    if (!target) return
+    const closing = s.tabs.filter((t) => t.id !== id)
+    if (closing.length === 0) return
+    const dirtyCount = closing.filter((t) => t.dirty).length
+    if (dirtyCount > 0 && !window.confirm(`有 ${dirtyCount} 个标签包含未保存的修改，关闭将丢弃。继续？`)) return
+    if (s.activeTabId !== id) {
+      // 激活标签被一并关闭：切到保留的 id 标签并加载（id 始终保留，不存在全关分支）
+      set({ tabs: [target], activeTabId: id })
+      void loadTabInto(target, set, get)
+    } else {
+      set({ tabs: [target] })
+    }
+  },
+
+  closeTabsToRight(id) {
+    const s = get()
+    const idx = s.tabs.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    const closing = s.tabs.slice(idx + 1)
+    if (closing.length === 0) return
+    const dirtyCount = closing.filter((t) => t.dirty).length
+    if (dirtyCount > 0 && !window.confirm(`有 ${dirtyCount} 个标签包含未保存的修改，关闭将丢弃。继续？`)) return
+    const kept = s.tabs.slice(0, idx + 1)
+    if (s.activeTabId && closing.some((t) => t.id === s.activeTabId)) {
+      // 激活标签在右侧被关：回退激活 id 标签并加载
+      set({ tabs: kept, activeTabId: id })
+      void loadTabInto(kept[kept.length - 1], set, get)
+    } else {
+      set({ tabs: kept })
+    }
+  },
+
   pinTab(id) {
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, pinned: true } : t)) }))
   },
@@ -1125,6 +1166,28 @@ export const useStore = create<State>((set, get) => ({
     } catch (err) {
       set({ saving: false })
       get().toast('err', `保存失败：${err}`)
+    }
+  },
+
+  async refreshActiveDoc() {
+    const s = get()
+    const tabId = s.activeTabId
+    if (!s.activeDoc || !s.activeProjectId || !tabId) return
+    // 图片经 /raw 直读文件，无文本内容可刷新（与外部变更轮询一致跳过）
+    if (IMAGE_EXT_SET.has(s.activeDoc.ext)) return
+    if (s.dirty && !window.confirm('当前有未保存的修改，刷新将丢弃。继续？')) return
+    try {
+      const doc = await apiFor<DocContent>(s.activeProjectId)(
+        'GET',
+        `/api/projects/${s.activeProjectId}/doc?path=${encodeURIComponent(s.activeDoc.path)}`
+      )
+      // 等待响应期间可能已切换标签/项目：仅仍是同一标签时落地
+      if (get().activeTabId !== tabId) return
+      cacheTabDoc(tabId, doc, set, get)
+      set({ activeDoc: doc, draft: doc.content, dirty: false })
+      get().toast('ok', '已刷新')
+    } catch (err) {
+      get().toast('err', `刷新失败：${err}`)
     }
   },
 

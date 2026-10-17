@@ -2,7 +2,7 @@
 // Electron 模式下经 preload 桥拿 base/token；纯 Web 预览（dev:web）回退到
 // 手动启动的 sidecar（127.0.0.1:37123 / dev-token）。
 // 远程项目经 apiWith() 走远端 timberd（见 utils/remote.ts 的 apiRoute）。
-import type { ApiInfo, ArchRefs, ArchResult, ArchSpec, CommitDetail, CommitInfo } from '@shared/types'
+import type { ApiInfo, ArchInsights, ArchInsightsResult, ArchRefs, ArchResult, ArchSpec, CommitDetail, CommitInfo } from '@shared/types'
 
 let cached: ApiInfo | null = null
 
@@ -101,6 +101,24 @@ export async function archSpec(id: string, ref: string, call: ApiCall = api): Pr
   )
   if (typeof data.diagram_type === 'string') return { ok: true, spec: data as unknown as ArchSpec }
   // 错误响应形态 { ok:false, error }（no-source/no-commits/not-a-repo 等）
+  const err = 'error' in data ? data.error : undefined
+  return { ok: false, error: typeof err === 'string' ? err : 'unknown' }
+}
+
+/**
+ * 架构洞察：组件热度 / 循环依赖 / IPC 通道等聚合分析。
+ * 成功响应顶层 ok:true，失败为 { ok:false, error }（no-commits/unknown-ref/no-source/not-a-repo）。
+ */
+export async function archInsights(
+  id: string,
+  ref: string,
+  call: ApiCall = api
+): Promise<ArchInsightsResult> {
+  const data = await call<Record<string, unknown>>(
+    'GET',
+    `/api/projects/${id}/arch/insights?ref=${encodeURIComponent(ref)}`
+  )
+  if (data.ok === true) return data as unknown as ArchInsights
   const err = 'error' in data ? data.error : undefined
   return { ok: false, error: typeof err === 'string' ? err : 'unknown' }
 }

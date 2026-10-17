@@ -1,22 +1,67 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { useStore } from '../store'
+import { useStore, type DocTab } from '../store'
+import ContextMenu, { type MenuItem } from './ContextMenu'
 
 /** 文档标签栏（VSCode 语义：斜体 = 预览标签，随单击复用；双击固定）；
  *  children 渲染为行右端操作区（全屏专注 / 阅读模式|编辑模式 / 保存等）。
  *  多文档时仅 tab 区横向滚动（tab 先收缩到最小宽、再滚动），
  *  右端操作区固定在可视区，不被挤走；激活 tab 自动滚入可视范围。
- *  支持拖拽 tab 调整先后顺序（插入位置以强调色竖线提示）。 */
+ *  支持拖拽 tab 调整先后顺序（插入位置以强调色竖线提示）。
+ *  右键 tab 弹出 VSCode 风格菜单（关闭 / 关闭其他 / 关闭右侧 / 复制路径等）。 */
 export default function TabsBar({ children }: { children?: ReactNode }) {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)
-  const { activateTab, closeTab, pinTab, reorderTabs } = useStore.getState()
+  const activeProjectId = useStore((s) => s.activeProjectId)
+  const projects = useStore((s) => s.projects)
+  const { activateTab, closeTab, closeOtherTabs, closeTabsToRight, pinTab, reorderTabs, toast } =
+    useStore.getState()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<{ from: string; over: string | null; pos: 'before' | 'after' } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; tabId: string } | null>(null)
 
   useEffect(() => {
     const el = scrollRef.current?.querySelector('.doc-tab.active')
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeTabId, tabs.length])
+
+  /** tab 右键菜单项（VSCode 风格）；远程项目无本地文件路径，隐藏「在文件管理器中显示」 */
+  const tabMenuItems = (t: DocTab): MenuItem[] => {
+    const project = projects.find((p) => p.id === activeProjectId)
+    const abs = project ? `${project.path}/${t.path}` : t.path
+    const items: MenuItem[] = [
+      { key: 'close', label: '关闭', onClick: () => closeTab(t.id) },
+      { key: 'close-others', label: '关闭其他标签', onClick: () => closeOtherTabs(t.id) },
+      { key: 'close-right', label: '关闭右侧标签', onClick: () => closeTabsToRight(t.id) },
+      {
+        key: 'copy-path',
+        label: '复制路径',
+        separatorBefore: true,
+        onClick: () => {
+          navigator.clipboard.writeText(t.path)
+          toast('ok', '路径已复制')
+        }
+      },
+      {
+        key: 'copy-abs',
+        label: '复制绝对路径',
+        onClick: () => {
+          navigator.clipboard.writeText(abs)
+          toast('ok', '绝对路径已复制')
+        }
+      }
+    ]
+    if (project && !project.remoteId) {
+      items.push({
+        key: 'reveal',
+        label: '在文件管理器中显示',
+        onClick: () => void window.timber?.revealPath(abs)
+      })
+    }
+    return items
+  }
+
+  // 菜单打开期间目标 tab 可能被关闭：找不到则不渲染
+  const menuTab = menu ? tabs.find((t) => t.id === menu.tabId) : undefined
 
   if (tabs.length === 0) return null
 
@@ -77,7 +122,11 @@ export default function TabsBar({ children }: { children?: ReactNode }) {
                 closeTab(t.id)
               }
             }}
-            title={`${t.path}\n（双击固定标签，拖动调整顺序）`}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setMenu({ x: e.clientX, y: e.clientY, tabId: t.id })
+            }}
+            title={`${t.path}\n（双击固定标签，拖动调整顺序，右键更多操作）`}
           >
             <span className="tab-name">{t.path.split('/').pop()}</span>
             <button
@@ -95,6 +144,9 @@ export default function TabsBar({ children }: { children?: ReactNode }) {
         ))}
       </div>
       {children && <div className="tabs-actions">{children}</div>}
+      {menu && menuTab && (
+        <ContextMenu x={menu.x} y={menu.y} items={tabMenuItems(menuTab)} onClose={() => setMenu(null)} />
+      )}
     </div>
   )
 }

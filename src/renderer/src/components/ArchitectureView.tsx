@@ -1,20 +1,39 @@
-// 架构视图：快照 / 对比（delta）两种模式，archify HTML 经 iframe 呈现
+// 架构视图：快照 / 对比（delta）/ 矩阵（DSM）/ 洞察 四种模式。
+// 快照与对比把 archify 自包含 HTML 经 iframe 呈现（需 Electron 主进程渲染）；
+// 矩阵与洞察为 React 原生渲染，仅走 sidecar HTTP（dev:web 亦可用）。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ArchRefs } from '@shared/types'
 import { archRefs } from '../api'
 import { apiCallFor, useStore } from '../store'
+import { archTheme, setArchTheme } from '../utils/local-store'
+import ArchMatrix from './ArchMatrix'
+import ArchInsightsView from './ArchInsights'
 
-type Mode = 'snapshot' | 'delta'
+type Mode = 'snapshot' | 'delta' | 'matrix' | 'insights'
 
-/** arch/spec 错误码 → 空态文案 */
+/** 架构图皮肤（archify HTML 的 data-theme）；矩阵/洞察为 React 渲染，随应用主题，不受此影响 */
+type ArchTheme = 'light' | 'dark'
+
+/** arch/spec/insights 错误码 → 空态文案（矩阵/洞察组件共用） */
 const ARCH_ERROR_TEXTS: Record<string, string> = {
   'no-commits': '该仓库暂无提交，无法生成架构快照',
+  'unknown-ref': '未找到该 ref 对应的提交',
   'no-source': '未找到可分析的源码文件（支持 ts/js/go/py/rs/java 等）',
   'not-a-repo': '当前项目不是 Git 仓库'
 }
 
-function archErrorText(code: string): string {
+export function archErrorText(code: string): string {
   return ARCH_ERROR_TEXTS[code] ?? `架构分析失败：${code}`
+}
+
+/** 把 archify 写死的深色替换为目标主题（仅替换首个出现，即 <html> 标签上的 data-theme） */
+export function applyArchTheme(html: string, theme: ArchTheme): string {
+  if (theme === 'dark') return html
+  return html.replace('data-theme="dark"', `data-theme="${theme}"`)
+}
+
+function systemTheme(): ArchTheme {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 export default function ArchitectureView() {
@@ -32,6 +51,30 @@ export default function ArchitectureView() {
   const [html, setHtml] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 矩阵/洞察的刷新代际：点击 ⟳ 自增，子组件据此重拉
+  const [refreshSeq, setRefreshSeq] = useState(0)
+
+  // 架构图主题：未设置过则跟随系统；用户一切换即持久化并解除跟随
+  const [followSystem, setFollowSystem] = useState(() => archTheme() === null)
+  const [theme, setTheme] = useState<ArchTheme>(() => archTheme() ?? systemTheme())
+
+  useEffect(() => {
+    if (!followSystem) return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (e: MediaQueryListEvent): void => setTheme(e.matches ? 'dark' : 'light')
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [followSystem])
+
+  const toggleTheme = (): void => {
+    const next: ArchTheme = theme === 'dark' ? 'light' : 'dark'
+    setArchTheme(next)
+    setFollowSystem(false)
+    setTheme(next)
+  }
+
+  // iframe srcDoc 前统一套用主题（缓存命中分支同走此路径，切换主题即时生效）
+  const themedHtml = useMemo(() => (html ? applyArchTheme(html, theme) : null), [html, theme])
 
   // 可选 ref 清单（HEAD + branches + tags）
   useEffect(() => {
@@ -66,6 +109,8 @@ export default function ArchitectureView() {
       const stale = (): boolean => seq !== loadSeq.current
       const id = activeProjectId
       if (!id) return
+      // 矩阵/洞察由各自子组件加载（React 渲染，无需 Electron）
+      if (mode === 'matrix' || mode === 'insights') return
       const b = window.timber
       if (!b) {
         setError('架构渲染需要 Electron 环境')
@@ -111,7 +156,7 @@ export default function ArchitectureView() {
           setHtml(null)
           return
         }
-        // 写入 store HTML 缓存（不可变更新）
+        // 写入 store HTML 缓存（不可变更新；缓存的是原始 HTML，主题在 srcDoc 前套用）
         const next = new Map(useStore.getState().archHtmlCache)
         next.set(key, result.html)
         useStore.setState({ archHtmlCache: next })
@@ -133,15 +178,25 @@ export default function ArchitectureView() {
     void load(false)
   }, [load])
 
-  // 刷新：同时丢弃 store 中对应 HTML 缓存
+  // 刷新：快照/对比丢弃 HTML 缓存重渲；矩阵丢弃 spec 缓存；洞察通知子组件重拉
   const refresh = (): void => {
     const id = activeProjectId
-    if (id) {
-      const key = mode === 'snapshot' ? `${id}:${snapRef}` : `${id}:${baseRef}..${headRef}`
-      const next = new Map(archHtmlCache)
-      next.delete(key)
-      useStore.setState({ archHtmlCache: next })
+    if (!id) return
+    if (mode === 'matrix') {
+      const next = new Map(useStore.getState().archSpecCache)
+      next.delete(snapRef)
+      useStore.setState({ archSpecCache: next })
+      setRefreshSeq((s) => s + 1)
+      return
     }
+    if (mode === 'insights') {
+      setRefreshSeq((s) => s + 1)
+      return
+    }
+    const key = mode === 'snapshot' ? `${id}:${snapRef}` : `${id}:${baseRef}..${headRef}`
+    const next = new Map(archHtmlCache)
+    next.delete(key)
+    useStore.setState({ archHtmlCache: next })
     void load(true)
   }
 
@@ -157,17 +212,14 @@ export default function ArchitectureView() {
           <button className={mode === 'delta' ? 'active' : ''} onClick={() => setMode('delta')}>
             对比
           </button>
+          <button className={mode === 'matrix' ? 'active' : ''} onClick={() => setMode('matrix')}>
+            矩阵
+          </button>
+          <button className={mode === 'insights' ? 'active' : ''} onClick={() => setMode('insights')}>
+            洞察
+          </button>
         </div>
-        {mode === 'snapshot' ? (
-          <label className="av-field">
-            快照 ref
-            <select value={snapRef} onChange={(e) => setSnapRef(e.target.value)}>
-              {refOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-        ) : (
+        {mode === 'delta' ? (
           <>
             <label className="av-field">
               基准
@@ -194,14 +246,38 @@ export default function ArchitectureView() {
               </select>
             </label>
           </>
+        ) : (
+          <label className="av-field">
+            {mode === 'snapshot' ? '快照 ref' : 'ref'}
+            <select value={snapRef} onChange={(e) => setSnapRef(e.target.value)}>
+              {refOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
         )}
+        <button
+          className="av-theme"
+          onClick={toggleTheme}
+          title="架构图主题：首次跟随系统，切换后独立记忆"
+        >
+          {theme === 'dark' ? '☀' : '🌙'}
+        </button>
         <button className="av-refresh" onClick={refresh} title="重新渲染（丢弃缓存）">⟳</button>
       </div>
       <div className="av-body">
-        {loading && <div className="hv-loading">架构图渲染中…</div>}
-        {!loading && error && <div className="hv-empty">{error}</div>}
-        {!loading && !error && html && (
-          <iframe className="av-frame" sandbox="allow-scripts" srcDoc={html} title="架构图" />
+        {mode === 'matrix' ? (
+          <ArchMatrix refName={snapRef} refreshSeq={refreshSeq} />
+        ) : mode === 'insights' ? (
+          <ArchInsightsView refName={snapRef} refreshSeq={refreshSeq} />
+        ) : (
+          <>
+            {loading && <div className="hv-loading">架构图渲染中…</div>}
+            {!loading && error && <div className="hv-empty">{error}</div>}
+            {!loading && !error && themedHtml && (
+              <iframe className="av-frame" sandbox="allow-scripts" srcDoc={themedHtml} title="架构图" />
+            )}
+          </>
         )}
       </div>
     </div>

@@ -34,6 +34,7 @@ export default function Reader() {
     dirty,
     saving,
     saveDoc,
+    refreshActiveDoc,
     annotations,
     annPanelOpen,
     toggleAnnPanel,
@@ -216,6 +217,15 @@ export default function Reader() {
   return (
     <div className="reader">
       <TabsBar>
+        {!isImage && (
+          <button
+            className="rt-btn"
+            onClick={() => void refreshActiveDoc()}
+            title="刷新：重新从磁盘读取文档 (F5)"
+          >
+            ⟳
+          </button>
+        )}
         <button
           className={`rt-btn zen-toggle ${zenMode ? 'active' : ''}`}
           onClick={() => setZenMode(!zenMode)}

@@ -88,3 +88,16 @@ export function unblockPath(projectId: string, path: string): void {
     blockedPaths(projectId).filter((p) => p !== path && !p.startsWith(path + '/'))
   )
 }
+
+// ---- 架构图主题（archify HTML 皮肤；null = 未设置 = 跟随系统） ----
+
+const ARCH_THEME_KEY = 'timber-arch-theme'
+
+export function archTheme(): 'light' | 'dark' | null {
+  const v = readJSON<string | null>(ARCH_THEME_KEY, null)
+  return v === 'light' || v === 'dark' ? v : null
+}
+
+export function setArchTheme(t: 'light' | 'dark'): void {
+  writeJSON(ARCH_THEME_KEY, t)
+}
